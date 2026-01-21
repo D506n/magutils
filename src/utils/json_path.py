@@ -1,4 +1,8 @@
 from typing import Any
+import re
+
+
+TEMPLATE_REGEX = re.compile(r'(?<!\{)(\{[a-z\.0-9\+\-\}]+)(?!\})')
 
 
 def get_by_path(obj: dict, path: str):
@@ -71,3 +75,12 @@ def set_by_path(obj, path: str, value):
         except Exception:
             keys.append(key)
     __set_by_path(obj, keys, value)
+
+
+def format(template:str, data:dict):
+    keys = TEMPLATE_REGEX.findall(template)
+    temp = {}
+    for key in keys:
+        path = key[1:-1]
+        temp[path] = get_by_path(data, path)
+    return template.format(**temp)
