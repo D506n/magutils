@@ -82,5 +82,7 @@ def format(template:str, data:dict):
     temp = {}
     for key in keys:
         path = key[1:-1]
-        temp[path] = get_by_path(data, path)
+        new_key = path.replace('.', '_')
+        template = template.replace(key, '{%s}' % new_key)
+        temp[new_key] = get_by_path(data, path)
     return template.format(**temp)
