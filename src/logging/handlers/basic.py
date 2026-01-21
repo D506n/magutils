@@ -32,7 +32,7 @@ class BaseAsyncHandler(Handler):
             record = await self.queue.get()
             if record is self._shutdown_marker:
                 self.queue.task_done()
-                # self.queue.shutdown() # отключено для py 3.9
+                self.queue.shutdown()
                 break
 
             await self.ahandle(record, at_exit=at_exit)
@@ -55,10 +55,10 @@ class BaseAsyncHandler(Handler):
         super().close()
         print('closing')
 
-        # try:
-        self.queue.put_nowait(self._shutdown_marker)
-        # except asyncio.QueueShutDown:
-        #     pass
+        try:
+            self.queue.put_nowait(self._shutdown_marker)
+        except asyncio.QueueShutDown:
+            pass
 
         try:
             asyncio.get_event_loop().run_until_complete(self.ajoin())
