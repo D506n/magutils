@@ -2,7 +2,7 @@ from typing import Any
 import re
 
 
-TEMPLATE_REGEX = re.compile(r'(?<!\{)(\{[a-z\.0-9\+\-\}]+)(?!\})')
+TEMPLATE_REGEX = re.compile(r'(?<!\{)(\{[a-z\.0-9\+\-\}_]+)(?!\})')
 
 
 def get_by_path(obj: dict, path: str):
