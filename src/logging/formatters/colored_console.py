@@ -1,19 +1,26 @@
-from logging import Formatter, LogRecord
-from colorama import Fore
-from functools import partial, lru_cache
-import re
-from typing import Callable
 import time
+from functools import lru_cache, partial
+from logging import Formatter, LogRecord
+from typing import Callable
+from warnings import warn
 
-FORMAT_PARSE_REG = re.compile(r'%\(([A-Za-z]+)\)(\d*)\w')
+from colorama import Fore
+
+from . import defaults as DEF
+
 
 class ColoredConsoleFormatter(Formatter):
-    def __init__(self, fmt='[%(levelname)8s|%(asctime)s|%(name)20s|%(filename)20s:%(lineno)4s] %(message)s', datefmt=None, use_cahce=True, custom_colors=None, no_cut=False):
+    def __init__(self, 
+                 fmt=DEF.FMT, # noqa
+                 datefmt=None, 
+                 use_cache=True, 
+                 custom_colors=None, 
+                 no_cut=False):
         super().__init__(fmt, datefmt)
-        self.default_time_format = '%Y-%m-%dT%H:%M:%S' if not datefmt else datefmt
-        self.default_msec_format = '%s:%03d'
-        self.use_cache = use_cahce
-        self.colors = {'level': {'DEBUG': Fore.CYAN, 'INFO': Fore.GREEN, 'WARNING': Fore.YELLOW, 'ERROR': Fore.RED, 'CRITICAL': Fore.MAGENTA}, 'asctime': Fore.BLUE, 'name': Fore.YELLOW, 'message': Fore.RESET, 'reset': Fore.RESET}
+        self.default_time_format = (DEF.TIME if not datefmt else datefmt)
+        self.default_msec_format = DEF.MSEC
+        self.use_cache = use_cache
+        self.colors = DEF.COLORS
         self.no_cut = no_cut
         if isinstance(custom_colors, dict):
             self.colors.update(custom_colors)
@@ -31,44 +38,64 @@ class ColoredConsoleFormatter(Formatter):
     def color_substring(self, substring, color):
         return color + substring + Fore.RESET
 
-    def align_substring(self, substring, string_width:int):
+    def align_substring(self, substring, string_width: int):
         if not isinstance(substring, str):
             substring = str(substring)
         if string_width == 0:
             return substring
         if len(substring) > string_width and not self.no_cut:
-            return f'...{substring[len(substring) - string_width+3:]}'
+            return f'...{substring[len(substring) - string_width + 3:]}'
         return f'{substring:^{string_width}}'
 
     def parse_format(self, format_string):
-        variables = FORMAT_PARSE_REG.findall(format_string)
-        result:dict[str, tuple[Callable, Callable]] = {}
+        variables = DEF.FORMAT_PARSE_REG.findall(format_string)
+        result: dict[str, tuple[Callable, Callable]] = {}
         for var, width in variables:
             width = 0 if not width else int(width)
-            result[var] = (partial(self.color_substring, color=self.colors.get(var, Fore.RESET)), partial(self.align_substring, string_width=width))
+            result[var] = (
+                partial(
+                    self.color_substring, 
+                    color=self.colors.get(var, Fore.RESET)), 
+                partial(
+                    self.align_substring, 
+                    string_width=width))
         return result
 
-    def format(self, record:LogRecord):
-        record = LogRecord(record.name, record.levelno, record.pathname, record.lineno, record.msg, record.args, record.exc_info, record.funcName, record.stack_info)
+    def format(self, record: LogRecord):
+        record = LogRecord(
+            record.name, 
+            record.levelno, 
+            record.pathname, 
+            record.lineno, 
+            record.msg, 
+            record.args, 
+            record.exc_info, 
+            record.funcName, 
+            record.stack_info)
         try:
             for var, (color_func, align_func) in self.fields_mapping.items():
                 if var == 'levelname':
                     level = record.levelname
                     record.levelname = align_func(record.levelname)
-                    record.levelname = self.get_level_color(level) + record.levelname + Fore.RESET
+                    record.levelname = (self.get_level_color(level) + 
+                                                        record.levelname + 
+                                                        Fore.RESET)
                     continue
                 elif var in self.skip_fields:
                     continue
                 setattr(record, var, align_func(getattr(record, var)))
                 setattr(record, var, color_func(getattr(record, var)))
         except Exception as e:
+            warn('Exception occured in logging formatter!')
             print(e)
         return super().format(record)
 
     def formatMessage(self, record):
-        return self.colors['message'] + super().formatMessage(record) + Fore.RESET
+        return (self.colors['message'] + 
+                     super().formatMessage(record) + 
+                     Fore.RESET)
 
-    def formatTime(self, record:LogRecord, datefmt=None):
+    def formatTime(self, record: LogRecord, datefmt=None):
         dt = self._formatTime(record.created, datefmt, record.msecs)
         return dt
 

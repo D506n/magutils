@@ -1,11 +1,12 @@
-from logging import Handler, LogRecord
-from asyncio import Queue, create_task
-import atexit
 import asyncio
-from threading import Semaphore, Event
+import atexit
+from asyncio import Queue, create_task
+from logging import Handler, LogRecord
+from threading import Event, Semaphore
+
 
 class BaseAsyncHandler(Handler):
-    def __init__(self, level = 0):
+    def __init__(self, level=0):
         super().__init__(level)
         self._closed = False 
         self.queue = Queue()
@@ -38,11 +39,13 @@ class BaseAsyncHandler(Handler):
             await self.ahandle(record, at_exit=at_exit)
             self.queue.task_done()
 
-    async def ahandle(self, record:LogRecord, at_exit=False):
+    async def ahandle(self, record: LogRecord, at_exit=False):
         raise NotImplementedError()
 
     async def ajoin(self):
-        if self.bg_task and (self.bg_task.done() or self.bg_task.cancelled()) and not self.queue.empty():
+        if self.bg_task\
+        and (self.bg_task.done() or self.bg_task.cancelled())\
+        and not self.queue.empty():
             await self.read_queue(at_exit=True)
             self.bg_task = None
 

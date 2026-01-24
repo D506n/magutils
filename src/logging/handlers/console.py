@@ -1,5 +1,7 @@
-from .basic import BaseAsyncHandler
 from aioconsole import aprint
+
+from .basic import BaseAsyncHandler
+
 
 class AsyncConsoleHandler(BaseAsyncHandler):
     async def ahandle(self, record, at_exit):
