@@ -11,4 +11,5 @@ dependencies = [
     "dotenv>=0.9.9",
     "orjson>=3.11.4",
     "pytz>=2025.2",
+    "pydantic>=2.12.5",
 ]
