@@ -12,4 +12,5 @@ dependencies = [
     "orjson>=3.11.4",
     "pytz>=2025.2",
     "pydantic>=2.12.5",
+    "babel>=2.17.0",
 ]
