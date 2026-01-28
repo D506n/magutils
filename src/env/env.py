@@ -95,7 +95,12 @@ def _build_fields( # noqa
             or factory_wrapper(dfactory, name, prefix)()
 
         if env_val is None:
-            errors.append(FieldRequiredError(pcls, name))
+            try:
+                TypeAdapter(f.annotation).validate_python(env_val)
+            except Exception:
+                errors.append(FieldRequiredError(pcls, name))
+            else:
+                result[name] = env_val
             continue
 
         adapt = TypeAdapter(f.annotation)
