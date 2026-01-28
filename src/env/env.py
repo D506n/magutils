@@ -192,11 +192,15 @@ def environ(
         @wraps(cls)
         def wrapper():
             if cls not in instances:
+                orig_cls = cls
                 load_dotenv(path)
                 fields = _build_fields(cls, prefix)
                 pcls = dataclass()(cls)
-                instances[pcls] = pcls(**fields)
+                inst = pcls(**fields)
+                instances[orig_cls] = inst
                 _PrefixStorage._storage[pcls] = prefix
-            return instances[pcls]
+                return instances[orig_cls]
+            else:
+                return instances[cls]
         return wrapper
     return environ_wrap
