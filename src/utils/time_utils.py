@@ -1,13 +1,12 @@
 import os
+import zoneinfo
 from datetime import datetime
 from functools import lru_cache
-
-import pytz
 
 
 @lru_cache(maxsize=1)
 def get_tz():
-    return pytz.timezone(os.getenv('TIMEZONE', 'Europe/Moscow'))
+    return zoneinfo.ZoneInfo(os.getenv('TIMEZONE', 'Europe/Moscow'))
 
 
 def get_current_time():
