@@ -1,5 +1,5 @@
-from typing import Any
 import re
+from typing import Any
 
 
 TEMPLATE_REGEX = re.compile(r'(?<!\{)(\{[a-z\.0-9\+\-\}_]+)(?!\})')
@@ -77,7 +77,7 @@ def set_by_path(obj, path: str, value):
     __set_by_path(obj, keys, value)
 
 
-def format(template:str, data:dict):
+def format(template: str, data: dict):
     keys = TEMPLATE_REGEX.findall(template)
     temp = {}
     for key in keys:
