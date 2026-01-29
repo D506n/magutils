@@ -48,8 +48,9 @@ class AsyncFileHandler(BaseAsyncHandler):
         self.rotation_by_dt = rotation_by_dt
         self.current_log_dt = datetime.now()
         self.on_expire = self._delete_expired_file if on_expire == 'delete'\
-        else self._compress_expired_file
+            else self._compress_expired_file
         self.compressor = compressor or zip_compressor
+        self.file: AsyncTextIOWrapper = None
 
     @lru_cache(maxsize=1)
     def _file_path_with_dt(self):
@@ -72,27 +73,50 @@ class AsyncFileHandler(BaseAsyncHandler):
         return False
 
     async def _delete_expired_file(self):
-        async with aiofiles.open(self.file_path, 'w', encoding=ENCODING) as f:
-            await f.write('')
+        if self.file_path.exists():
+            self.file_path.unlink()
+        self.file = None
 
     async def _compress_expired_file(self):
-        async with aiofiles.open(self.file_path, 'rb', encoding=ENCODING) as f:
-            try:
-                await self.compressor(self.file_path, f)
-            except Exception as e:
-                warn(f'Error compressing log file {e}')
+        f = await self.file_open('rb')
+        try:
+            await self.compressor(self.file_path, f)
+        except Exception as e:
+            warn(f'Error compressing log file {e}')
         self._file_path_with_dt.cache_clear()
-        async with aiofiles.open(self.file_path, 'w', encoding=ENCODING) as f:
-            await f.write('')
+        await self._delete_expired_file()
 
     async def ajoin(self):
         await super().ajoin()
+        await self.file.close()
         with open(self.file_path, 'a', encoding=ENCODING) as f:
             f.write(self.close_buffer)
 
+    @property
+    def fparams(self):
+        return {
+            'file': self.file_path,
+            'encoding': ENCODING
+        }
+
+    async def file_open(self, mode: str):
+        if not self.file or self.file.closed or self.file.mode != mode:
+            try:
+                await self.file.close()
+            except Exception:
+                pass
+            try:
+                self.file = await aiofiles.open(mode=mode, **self.fparams)
+            except FileNotFoundError:
+                self.file_path.parent.mkdir(parents=True, exist_ok=True)
+                self.file_path.touch(exist_ok=True)
+                self.file = await aiofiles.open(mode=mode, **self.fparams)
+            # при других ошибках пусть падает, быстрее отловлю
+        return self.file
+
     async def awrite(self, msg):
-        async with aiofiles.open(self.file_path, 'a', encoding=ENCODING) as f:
-            await f.write(msg + '\n')
+        file = await self.file_open('a')
+        await file.write(msg + '\n')
 
     def write(self, msg):
         self.close_buffer += msg + '\n'
