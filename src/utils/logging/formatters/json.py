@@ -1,4 +1,3 @@
-from functools import lru_cache
 from logging import LogRecord
 from warnings import warn
 from zoneinfo import ZoneInfo
@@ -13,16 +12,12 @@ class JsonFormatter(BaseFormatter):
     def __init__(self, 
                  fmt=DEF.FMT, 
                  datefmt=None, 
-                 use_cahce=True, 
                  decode=True,
                  tz: ZoneInfo = None):
         super().__init__(fmt, datefmt, tz=tz)
         self.default_time_format = (DEF.TIME if not datefmt else datefmt)
         self.default_msec_format = DEF.MSEC
-        self.use_cache = use_cahce
         self.decode = decode
-        if self.use_cache:
-            self._formatTime = lru_cache()(self._formatTime)
         self.fields = self.parse_format(fmt)
 
     def parse_format(self, format_string) -> list[str]:
@@ -43,7 +38,7 @@ class JsonFormatter(BaseFormatter):
             for key, value in [(k, v,) for k, v in record.__dict__.items() 
                                             if k not in DEF.DEFAULT_FIELDS]:
                 json_record['extra'][key] = value
-        except Exception as e:
+        except Exception as e:  # nocov
             warn('Exception occured in logging formatter!')
             print(e)
         else:

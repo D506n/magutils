@@ -2,7 +2,6 @@ import asyncio
 import atexit
 from asyncio import Queue, create_task
 from logging import Handler, LogRecord
-from threading import Event, Semaphore
 
 
 class BaseAsyncHandler(Handler):
@@ -12,8 +11,6 @@ class BaseAsyncHandler(Handler):
         self.queue: Queue[LogRecord] = Queue()
         self.bg_task = None
         self._shutdown_marker = object()
-        self.closing_event = Event()
-        self.closing_semaphore = Semaphore()
         atexit.register(self.close)
 
     def emit(self, record):
@@ -29,27 +26,16 @@ class BaseAsyncHandler(Handler):
             self.bg_task = create_task(self.read_queue())
 
     async def read_queue(self, at_exit=False):
-        while not self.closing_event.is_set():
+        while True:
             record = await self.queue.get()
-            if record is self._shutdown_marker:
-                self.queue.task_done()
-                self.queue.shutdown()
-                break
             try:
                 await self.ahandle(record, at_exit=at_exit)
                 self.queue.task_done()
-            except Exception:
+            except Exception:  # nocov
                 self.handleError(record)
 
     async def ahandle(self, record: LogRecord, at_exit=False):
         raise NotImplementedError()
-
-    async def ajoin(self):
-        if self.bg_task\
-        and (self.bg_task.done() or self.bg_task.cancelled())\
-        and not self.queue.empty():
-            await self.read_queue(at_exit=True)
-            self.bg_task = None
 
     def chandle(self, record):
         pass
@@ -58,11 +44,6 @@ class BaseAsyncHandler(Handler):
         pass
 
     def close(self):
-        self.closing_semaphore.acquire()
-        if self.closing_event.is_set():
-            return
-        self.closing_event.set()
-        self.closing_semaphore.release()
         super().close()
 
         while True:

@@ -7,12 +7,13 @@ import pytest
 
 # TODO: доработать парсинг вложенных классов
 # from pydantic.dataclasses import dataclass # noqa к такому мой env пока не готов
-from src.env import EnvironTools, EnvValidationError, environ
-from src.environ import Env
-
+from src.utils.env import EnvironTools, EnvValidationError, environ
 
 class TestEnv:
     def test_creation(self):
+        @environ()
+        class Env():
+            A = 1
         e1 = Env()
         e2 = Env()
         assert e1 is e2

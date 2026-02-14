@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "aioconsole>=0.8.2",
     "aiofiles>=25.1.0",
     "colorama>=0.4.6",
     "dotenv>=0.9.9",
@@ -14,3 +13,39 @@ dependencies = [
     "babel>=2.17.0",
     "nanoid>=2.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+]
+
+[tool.coverage.run]
+source = ["src"]
+
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/t.py",
+    "main.py",
+    "src/nlp/regex.py",
+    "src/db/tables.py",
+    "routers/**/api_router.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "raise ImportError",
+    "except ImportError",
+    "return",
+    "# nocov",
+    "pass"
+]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["asyncpg"]

@@ -1,7 +1,5 @@
 import asyncio
 
-from aioconsole import aprint
-
 from .basic import BaseAsyncHandler
 
 
@@ -21,8 +19,7 @@ class AsyncConsoleHandler(BaseAsyncHandler):
     async def aflush(self):
         async with self.alock:
             if self.buffer:
-                await aprint('\n'.join(self.buffer))
-                self.buffer.clear()
+                await asyncio.to_thread(self.cflush)
 
     def cflush(self):
         if self.buffer:

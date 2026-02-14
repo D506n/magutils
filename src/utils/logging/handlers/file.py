@@ -68,6 +68,7 @@ class AsyncFileHandler(BaseAsyncHandler):
             if self.buffer:
                 file = await self.file_open('a')
                 await file.write('\n'.join(self.buffer) + '\n')
+                await file.flush()
                 self.buffer.clear()
 
     @lru_cache(maxsize=1)
@@ -141,15 +142,9 @@ class AsyncFileHandler(BaseAsyncHandler):
         if self.delayed_flush is None:
             self.delayed_flush = asyncio.create_task(self.daflush())
 
-    def write(self, msg):
-        self.close_buffer += msg + '\n'
-
     async def ahandle(self, record, at_exit=False):
         msg = self.format(record)
-        if at_exit:
-            self.write(msg)
-        else:
-            await self.awrite(msg)
+        await self.awrite(msg)
         if self.check_expired():
             await self.on_expire()
 

@@ -20,6 +20,7 @@ def __config(formatter: Formatter,
     level: str | int,
     handlers: Iterable[BaseAsyncHandler],
     force: bool):
+
     min_level = min(handler.level for handler in handlers)
     basicConfig(level=min_level or level, handlers=handlers, force=force)
     root_logger = getLogger()
@@ -97,6 +98,7 @@ def config_async_logging(
     force: bool = True,
     env_prefix: str = '',
     mp_que: Queue[LogRecord] = None):
+
     level = level or os.getenv(f'{env_prefix}LOG_LEVEL', 'INFO')
     for handler in handlers or []:
         if handler.level == 0:

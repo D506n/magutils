@@ -1,3 +1,4 @@
+import copy
 from functools import lru_cache, partial
 from logging import LogRecord
 from typing import Callable
@@ -41,16 +42,7 @@ class MonocolorFormatter(BaseFormatter):
         return result
 
     def format(self, record: LogRecord):
-        record = LogRecord(
-            record.name, 
-            record.levelno, 
-            record.pathname, 
-            record.lineno, 
-            record.msg, 
-            record.args, 
-            record.exc_info, 
-            record.funcName, 
-            record.stack_info)
+        record = copy.copy(record)
         try:
             for var, align_func in self.fields_mapping.items():
                 if var == 'levelname':
@@ -59,7 +51,7 @@ class MonocolorFormatter(BaseFormatter):
                 elif var in self.skip_fields:
                     continue
                 setattr(record, var, align_func(getattr(record, var)))
-        except Exception as e:
+        except Exception as e:  # nocov
             warn('Exception occured in logging formatter!')
             print(e)
         else:

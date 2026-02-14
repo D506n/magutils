@@ -1,3 +1,4 @@
+import copy
 from functools import lru_cache, partial
 from logging import LogRecord
 from typing import Callable
@@ -12,7 +13,7 @@ from .base import BaseFormatter
 
 class ColoredConsoleFormatter(BaseFormatter):
     def __init__(self, 
-                 fmt=DEF.FMT, # noqa
+                 fmt=DEF.FMT, 
                  datefmt=None, 
                  use_cache=True, 
                  custom_colors=None, 
@@ -28,7 +29,6 @@ class ColoredConsoleFormatter(BaseFormatter):
             self.colors.update(custom_colors)
         if self.use_cache:
             self.get_level_color = lru_cache()(self.get_level_color)
-            # self._formatTime = lru_cache()(self._formatTime)
             self.align_substring = lru_cache()(self.align_substring)
             self.color_substring = lru_cache()(self.color_substring)
         self.fields_mapping = self.parse_format(fmt)
@@ -64,16 +64,7 @@ class ColoredConsoleFormatter(BaseFormatter):
         return result
 
     def format(self, record: LogRecord):
-        record = LogRecord(
-            record.name, 
-            record.levelno, 
-            record.pathname, 
-            record.lineno, 
-            record.msg, 
-            record.args, 
-            record.exc_info, 
-            record.funcName, 
-            record.stack_info)
+        record = copy.copy(record)
         try:
             for var, (color_func, align_func) in self.fields_mapping.items():
                 if var == 'levelname':
@@ -87,7 +78,7 @@ class ColoredConsoleFormatter(BaseFormatter):
                     continue
                 setattr(record, var, align_func(getattr(record, var)))
                 setattr(record, var, color_func(getattr(record, var)))
-        except Exception as e:
+        except Exception as e:  # nocov
             warn('Exception occured in logging formatter!')
             print(e)
         return super().format(record)
