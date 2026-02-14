@@ -55,8 +55,6 @@ class EnvValidationError(Exception):
 
 def _find_env():
     path = Path(__file__).parent / '.env'
-    if path.exists():
-        return path
     stop = Path.cwd()
     while path != stop:
         path = path.parent
@@ -93,15 +91,17 @@ def _build_fields( # noqa
         env_val = os.getenv(prefix + name) \
             or default \
             or factory_wrapper(dfactory, name, prefix)()
-
         if env_val is None:
-            try:
-                TypeAdapter(f.annotation).validate_python(env_val)
-            except Exception:
-                errors.append(FieldRequiredError(pcls, name))
+            if default == 0:
+                env_val = 0
             else:
-                result[name] = env_val
-            continue
+                try:
+                    TypeAdapter(f.annotation).validate_python(env_val)
+                except Exception:
+                    errors.append(FieldRequiredError(pcls, name))
+                else:
+                    result[name] = env_val
+                continue
 
         adapt = TypeAdapter(f.annotation)
 
@@ -111,12 +111,17 @@ def _build_fields( # noqa
             except ValidationError:
                 errors.append(
                     EnvParsingError(pcls, name, f.annotation, env_val))
+                continue
         else:
             try:
-                data = adapt.validate_strings(env_val)
+                if isinstance(env_val, str):
+                    data = adapt.validate_strings(env_val)
+                else:
+                    data = adapt.validate_python(env_val)
             except ValidationError:
                 errors.append(
                     EnvParsingError(pcls, name, f.annotation, env_val))
+                continue
         result[name] = data
 
     if errors:
@@ -139,19 +144,22 @@ class EnvironTools:
     ```
     """
 
-    def refresh(self, path: Path = None, default_priority: bool = False):
+    def refresh(self, path: Path = None):
         if not path:
             path = Path.cwd() / '.env'
         load_dotenv(path, override=True)
-        self.__dict__.update(_build_fields(self.__class__, default_priority))
+        prefix = _PrefixStorage._storage[self.__class__]
+        self.__dict__.update(_build_fields(self.__class__, prefix))
 
     def save(self, path: Path = None, full_env: bool = False):
         if not path:
-            path = _find_env()
+            path = _find_env()  # nocov: _find_env() и так тестируется отдельно,
+            # не хочу автотестами засорять .env
 
         with open(path, 'r', encoding='utf-8') as f:
+            data = [s for s in f.read().split('\n') if s]
             current_data = {k: v for k, v in 
-                            [row.split('=', 1) for row in f.read().split('\n')]}
+                            [row.split('=', 1) for row in data]}
         new_data = {}
         prefix = _PrefixStorage._storage[self.__class__]
 

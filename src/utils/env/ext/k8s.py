@@ -15,8 +15,7 @@ logger = getLogger(__file__)
 
 
 class Factory(Protocol):
-    def __call__(self, api: client.CoreV1Api, name: str, prefix: str) -> Any:
-        ...
+    def __call__(self, api: client.CoreV1Api, name: str, prefix: str) -> Any: ... # noqa
 
 
 @lru_cache()

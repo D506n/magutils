@@ -1,5 +1,7 @@
 import os
-from logging import Formatter, basicConfig, getLogger
+from logging import Formatter, LogRecord, basicConfig, getLogger
+from logging.handlers import QueueListener
+from queue import Queue
 from typing import Iterable
 
 from .formatters import (
@@ -9,6 +11,9 @@ from .formatters import (
 )
 from .formatters import defaults as fmt_defaults
 from .handlers import AsyncConsoleHandler, AsyncFileHandler, BaseAsyncHandler
+
+MP_LISTENER: QueueListener | None = None
+MP_QUEUE: Queue[LogRecord] | None = None
 
 
 def __config(formatter: Formatter,
@@ -31,14 +36,14 @@ def __config(formatter: Formatter,
             logger.propagate = False
 
 
-def __handlers_from_env(prefix):
+def __handlers_from_env(prefix, level: str | None):
     result = []
     console = os.getenv(f'{prefix}LOG_CONSOLE', 'false').lower() == 'true'
     file = os.getenv(f'{prefix}LOG_FILE', 'false').lower() == 'true'
     file_json = os.getenv(f'{prefix}LOG_FILE_JSON', 'false').lower() == 'true'
     file_path = os.getenv(f'{prefix}LOG_FILE_PATH', 'data/log.log')
     max_bytes = os.getenv(f'{prefix}LOG_FILE_MAXBYTES')
-    log_level = os.getenv(f'{prefix}LOG_LEVEL', 'INFO')
+    log_level = level or os.getenv(f'{prefix}LOG_LEVEL', 'INFO')
     console_log_level = os.getenv(f'{prefix}LOG_CONSOLE_LEVEL', log_level)
     file_log_level = os.getenv(f'{prefix}LOG_FILE_LEVEL', log_level)
     rotation_by_dt = os.getenv(f'{prefix}LOG_FILE_ROTATION_BY_DT', 'false').lower() == 'true' # noqa
@@ -50,7 +55,7 @@ def __handlers_from_env(prefix):
     mono_formatter = MonocolorFormatter(fmt, time_fmt, use_cache, no_cut)
     colored_formatter = ColoredConsoleFormatter(fmt, time_fmt, use_cache, no_cut=no_cut) # noqa
     if console:
-        colors = os.getenv(f'{prefix}LOG_CONSOLE_COLORS', 'true').lower() == 'true'
+        colors = os.getenv(f'{prefix}LOG_CONSOLE_COLORS', 'true').lower() == 'true' # noqa
         if colors:
             console_formatter = colored_formatter
         else:
@@ -76,16 +81,28 @@ def __handlers_from_env(prefix):
     return result
 
 
+def __config_multiprocess(mp_que: Queue[LogRecord]):
+    global MP_LISTENER
+    global MP_QUEUE
+    MP_QUEUE = mp_que
+    root = getLogger()
+    MP_LISTENER = QueueListener(mp_que, *root.handlers)
+    MP_LISTENER.start()
+
+
 def config_async_logging(
     formatter: ColoredConsoleFormatter | MonocolorFormatter | Formatter = None,
     level: str | int | None = None,
     handlers: Iterable[BaseAsyncHandler] | None = None,
     force: bool = True,
-    env_prefix: str = ''):
+    env_prefix: str = '',
+    mp_que: Queue[LogRecord] = None):
     level = level or os.getenv(f'{env_prefix}LOG_LEVEL', 'INFO')
     for handler in handlers or []:
         if handler.level == 0:
             handler.setLevel(level)
     if not handlers:
-        handlers = __handlers_from_env(env_prefix)
+        handlers = __handlers_from_env(env_prefix, level)
     __config(formatter, level, handlers, force)
+    if mp_que:
+        __config_multiprocess(mp_que)

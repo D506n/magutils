@@ -35,7 +35,9 @@ class AsyncFileHandler(BaseAsyncHandler):
                  max_bytes: int = None, 
                  rotation_by_dt: bool = False, 
                  on_expire: EXP = 'delete', 
-                 compressor: COMPRESSOR = None, *args, **kwargs):
+                 compressor: COMPRESSOR = None, 
+                 buffer_size: int = 500, 
+                 *args, **kwargs):
         self._file_path = file_path if isinstance(file_path, Path)\
         else Path(file_path)
         if self._file_path.is_dir():
@@ -50,7 +52,23 @@ class AsyncFileHandler(BaseAsyncHandler):
         self.on_expire = self._delete_expired_file if on_expire == 'delete'\
             else self._compress_expired_file
         self.compressor = compressor or zip_compressor
+        self.buffer: list[str] = []
+        self.buffer_size = buffer_size
+        self.delayed_flush: asyncio.Task = None
+        self.alock = asyncio.Lock()
         self.file: AsyncTextIOWrapper = None
+
+    async def daflush(self):
+        await asyncio.sleep(0.01)
+        await self.aflush()
+        self.delayed_flush = None
+
+    async def aflush(self):
+        async with self.alock:
+            if self.buffer:
+                file = await self.file_open('a')
+                await file.write('\n'.join(self.buffer) + '\n')
+                self.buffer.clear()
 
     @lru_cache(maxsize=1)
     def _file_path_with_dt(self):
@@ -115,8 +133,13 @@ class AsyncFileHandler(BaseAsyncHandler):
         return self.file
 
     async def awrite(self, msg):
-        file = await self.file_open('a')
-        await file.write(msg + '\n')
+        if len(self.buffer) < self.buffer_size:
+            self.buffer.append(msg)
+        else:
+            await self.aflush()
+            self.buffer.append(msg)
+        if self.delayed_flush is None:
+            self.delayed_flush = asyncio.create_task(self.daflush())
 
     def write(self, msg):
         self.close_buffer += msg + '\n'
@@ -129,3 +152,17 @@ class AsyncFileHandler(BaseAsyncHandler):
             await self.awrite(msg)
         if self.check_expired():
             await self.on_expire()
+
+    def cflush(self):
+        if self.buffer:
+            with open(mode='a', **self.fparams) as f:
+                f.write('\n'.join(self.buffer) + '\n')
+            self.buffer.clear()
+
+    def chandle(self, record):
+        msg = self.format(record)
+        if len(self.buffer) < self.buffer_size:
+            self.buffer.append(msg)
+        else:
+            self.cflush()
+            self.buffer.append(msg)

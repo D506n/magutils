@@ -1,22 +1,24 @@
-import time
 from functools import lru_cache, partial
-from logging import Formatter, LogRecord
+from logging import LogRecord
 from typing import Callable
 from warnings import warn
+from zoneinfo import ZoneInfo
 
 from colorama import Fore
 
 from . import defaults as DEF
+from .base import BaseFormatter
 
 
-class ColoredConsoleFormatter(Formatter):
+class ColoredConsoleFormatter(BaseFormatter):
     def __init__(self, 
                  fmt=DEF.FMT, # noqa
                  datefmt=None, 
                  use_cache=True, 
                  custom_colors=None, 
-                 no_cut=False):
-        super().__init__(fmt, datefmt)
+                 no_cut=False,
+                 tz: ZoneInfo = None):
+        super().__init__(fmt, datefmt, tz=tz)
         self.default_time_format = (DEF.TIME if not datefmt else datefmt)
         self.default_msec_format = DEF.MSEC
         self.use_cache = use_cache
@@ -26,7 +28,7 @@ class ColoredConsoleFormatter(Formatter):
             self.colors.update(custom_colors)
         if self.use_cache:
             self.get_level_color = lru_cache()(self.get_level_color)
-            self._formatTime = lru_cache()(self._formatTime)
+            # self._formatTime = lru_cache()(self._formatTime)
             self.align_substring = lru_cache()(self.align_substring)
             self.color_substring = lru_cache()(self.color_substring)
         self.fields_mapping = self.parse_format(fmt)
@@ -95,18 +97,8 @@ class ColoredConsoleFormatter(Formatter):
                      super().formatMessage(record) + 
                      Fore.RESET)
 
-    def formatTime(self, record: LogRecord, datefmt=None):
-        dt = self._formatTime(record.created, datefmt, record.msecs)
-        return dt
-
-    def _formatTime(self, created, datefmt, msecs):
-        ct = time.localtime(created)
-        if datefmt:
-            s = time.strftime(datefmt, ct)
-        else:
-            s = time.strftime(self.default_time_format, ct)
-            if self.default_msec_format:
-                s = self.default_msec_format % (s, msecs)
+    def formatTime(self, record, datefmt=None):
+        s = super().formatTime(record, datefmt)
         s = self.fields_mapping['asctime'][1](s)
         s = self.fields_mapping['asctime'][0](s)
         return s

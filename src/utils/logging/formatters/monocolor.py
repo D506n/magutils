@@ -1,18 +1,21 @@
 from functools import lru_cache, partial
-from logging import Formatter, LogRecord
+from logging import LogRecord
 from typing import Callable
 from warnings import warn
+from zoneinfo import ZoneInfo
 
 from . import defaults as DEF
+from .base import BaseFormatter
 
 
-class MonocolorFormatter(Formatter):
+class MonocolorFormatter(BaseFormatter):
     def __init__(self, 
                  fmt=DEF.FMT, 
                  datefmt=None, 
                  use_cahce=True, 
-                 no_cut=False):
-        super().__init__(fmt, datefmt)
+                 no_cut=False, 
+                 tz: ZoneInfo = None):
+        super().__init__(fmt, datefmt, tz=tz)
         self.default_time_format = (DEF.TIME if not datefmt else datefmt)
         self.default_msec_format = DEF.MSEC
         self.use_cache = use_cahce

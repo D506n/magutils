@@ -1,20 +1,22 @@
-import time
 from functools import lru_cache
-from logging import Formatter, LogRecord
+from logging import LogRecord
 from warnings import warn
+from zoneinfo import ZoneInfo
 
 import orjson
 
 from . import defaults as DEF
+from .base import BaseFormatter
 
 
-class JsonFormatter(Formatter):
+class JsonFormatter(BaseFormatter):
     def __init__(self, 
                  fmt=DEF.FMT, 
                  datefmt=None, 
                  use_cahce=True, 
-                 decode=True):
-        super().__init__(fmt, datefmt)
+                 decode=True,
+                 tz: ZoneInfo = None):
+        super().__init__(fmt, datefmt, tz=tz)
         self.default_time_format = (DEF.TIME if not datefmt else datefmt)
         self.default_msec_format = DEF.MSEC
         self.use_cache = use_cahce
@@ -49,17 +51,3 @@ class JsonFormatter(Formatter):
             if self.decode:
                 return result.decode()
             return result
-
-    def formatTime(self, record: LogRecord, datefmt=None):
-        dt = self._formatTime(record.created, datefmt, record.msecs)
-        return dt
-
-    def _formatTime(self, created, datefmt, msecs):
-        ct = time.localtime(created)
-        if datefmt:
-            s = time.strftime(datefmt, ct)
-        else:
-            s = time.strftime(self.default_time_format, ct)
-            if self.default_msec_format:
-                s = self.default_msec_format % (s, msecs)
-        return s

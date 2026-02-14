@@ -1,3 +1,3 @@
-from .env import EnvironTools, environ
+from .env import EnvironTools, EnvParsingError, EnvValidationError, environ
 
-__all__ = ['environ', 'EnvironTools']
+__all__ = ['environ', 'EnvironTools', 'EnvParsingError', 'EnvValidationError']

@@ -9,7 +9,7 @@ class BaseAsyncHandler(Handler):
     def __init__(self, level=0):
         super().__init__(level)
         self._closed = False 
-        self.queue = Queue()
+        self.queue: Queue[LogRecord] = Queue()
         self.bg_task = None
         self._shutdown_marker = object()
         self.closing_event = Event()
@@ -29,15 +29,17 @@ class BaseAsyncHandler(Handler):
             self.bg_task = create_task(self.read_queue())
 
     async def read_queue(self, at_exit=False):
-        while True:
+        while not self.closing_event.is_set():
             record = await self.queue.get()
             if record is self._shutdown_marker:
                 self.queue.task_done()
                 self.queue.shutdown()
                 break
-
-            await self.ahandle(record, at_exit=at_exit)
-            self.queue.task_done()
+            try:
+                await self.ahandle(record, at_exit=at_exit)
+                self.queue.task_done()
+            except Exception:
+                self.handleError(record)
 
     async def ahandle(self, record: LogRecord, at_exit=False):
         raise NotImplementedError()
@@ -49,6 +51,12 @@ class BaseAsyncHandler(Handler):
             await self.read_queue(at_exit=True)
             self.bg_task = None
 
+    def chandle(self, record):
+        pass
+
+    def cflush(self):
+        pass
+
     def close(self):
         self.closing_semaphore.acquire()
         if self.closing_event.is_set():
@@ -56,14 +64,12 @@ class BaseAsyncHandler(Handler):
         self.closing_event.set()
         self.closing_semaphore.release()
         super().close()
-        print('closing')
 
-        try:
-            self.queue.put_nowait(self._shutdown_marker)
-        except asyncio.QueueShutDown:
-            pass
-
-        try:
-            asyncio.get_event_loop().run_until_complete(self.ajoin())
-        except RuntimeError:
-            asyncio.run(self.ajoin())
+        while True:
+            try:
+                log = self.queue.get_nowait()
+            except Exception:
+                break
+            self.chandle(log)
+        if getattr(self, 'buffer'):
+            self.cflush()
