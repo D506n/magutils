@@ -1,5 +1,4 @@
 from logging import LogRecord
-from warnings import warn
 from zoneinfo import ZoneInfo
 
 import orjson
@@ -36,27 +35,26 @@ class JsonFormatter(BaseFormatter):
         return tuple(result)
 
     def format(self, record: LogRecord):
-        try:
-            json_record = {}
-            for field in self.fields:
-                if field == 'message':
-                    json_record[field] = record.getMessage()
-                    json_record['args'] = self._serialize_args(record.args)
-                elif field == 'asctime':
-                    json_record[field] = self.formatTime(record)
-                else:
-                    val = getattr(record, field)
-                    if type(val) not in SERIALIZABLE:
-                        val = str(val)
-                    json_record[field] = val
-            json_record['extra'] = {}
-            for key, value in [(k, v,) for k, v in record.__dict__.items() 
-                                            if k not in DEF.DEFAULT_FIELDS]:
-                json_record['extra'][key] = value
-            result = orjson.dumps(json_record)
-        except Exception as e:
-            warn('Exception occured in logging formatter!')
-            print(e)
+        json_record = {}
+        for field in self.fields:
+            if field == 'message':
+                json_record['args'] = self._serialize_args(record.args)
+                print(json_record['args'])
+                json_record[field] = record.getMessage()
+            elif field == 'asctime':
+                json_record[field] = self.formatTime(record)
+            else:
+                val = getattr(record, field)
+                if type(val) not in SERIALIZABLE:
+                    val = str(val)
+                json_record[field] = val
+        json_record['extra'] = {}
+        for key, value in [(k, v,) for k, v in record.__dict__.items() 
+                                        if k not in DEF.DEFAULT_FIELDS]:
+            if type(value) not in SERIALIZABLE:
+                value = str(value)
+            json_record['extra'][key] = value
+        result = orjson.dumps(json_record)
         if self.decode:
             return result.decode()
         return result
