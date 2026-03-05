@@ -9,6 +9,7 @@ from src.utils.logging import config_async_logging
 import os
 import asyncio
 from tempfile import NamedTemporaryFile
+import weakref
 
 
 class TestLogging:
@@ -65,6 +66,17 @@ class TestLogging:
         assert len(result) == explen
         assert '"extra":{"a1":1}' in result
 
+    def test_json_format_serialize(self):
+        class SomeSerializable():
+            def __str__(self):
+                return 'test_string'
+
+        fmt = JsonFormatter()
+        record = LogRecord('test', 20, SomeSerializable(), 123, 'Test %s', (SomeSerializable(),), None)
+        record.test = SomeSerializable()
+        result = fmt.format(record)
+        assert 'test_string' in result
+
     @pytest.mark.parametrize(
         "text, args, expected, explen",
         [
@@ -120,6 +132,13 @@ class TestLogging:
         os.environ['LOG_FILE_JSON'] = 'false'
         config_async_logging(formatter=MonocolorFormatter())
 
+        os.environ['CONSOLE_LOG_JSON'] = 'true'
+        config_async_logging()
+        os.environ['CONSOLE_LOG_LEVEL'] = 'false'
+        os.environ['CONSOLE_LOG_JSON'] = 'false'
+        os.environ['LOG_FILE'] = 'false'
+        config_async_logging()
+
     @pytest.mark.asyncio
     async def test_async_logging(self):
         with NamedTemporaryFile('a', encoding='utf-8', prefix='log', suffix='.log') as f:
@@ -145,3 +164,5 @@ class TestLogging:
 
             with open(f.name, 'r', encoding='utf-8') as rf:
                 assert len(rf.readlines()) == 510
+
+    
