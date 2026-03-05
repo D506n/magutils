@@ -78,3 +78,12 @@ def from_timestamp(timestamp: int | float) -> datetime: ...  # noqa: F811 пер
 @lru_cache()
 def from_timestamp(timestamp: int | float) -> datetime:
     return datetime.fromtimestamp(timestamp, get_tz())
+
+
+@overload
+def get_future_time(delta: int | float) -> datetime: ...  # noqa: F811 перегрузка для типизации
+
+
+@lru_cache()
+def get_future_time(delta: int | float) -> datetime:
+    return get_current_time() + timedelta(seconds=delta)
