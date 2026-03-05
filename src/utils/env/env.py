@@ -155,11 +155,13 @@ class EnvironTools:
         if not path:
             path = _find_env()  # nocov: _find_env() и так тестируется отдельно,
             # не хочу автотестами засорять .env
-
-        with open(path, 'r', encoding='utf-8') as f:
-            data = [s for s in f.read().split('\n') if s]
-            current_data = {k: v for k, v in 
-                            [row.split('=', 1) for row in data]}
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = [s for s in f.read().split('\n') if s]
+                current_data = {k: v for k, v in 
+                                [row.split('=', 1) for row in data]}
+        except FileNotFoundError:
+            current_data = {}
         new_data = {}
         prefix = _PrefixStorage._storage[self.__class__]
 
