@@ -1,0 +1,9 @@
+{
+    "allow_branch_migration": [
+        "dev>main"
+    ],
+    "ignore_paths": [
+        ".gitlab-ci.yml",
+        "k8s/deployment.yaml"
+    ]
+}
