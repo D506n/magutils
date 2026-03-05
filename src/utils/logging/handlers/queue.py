@@ -9,11 +9,10 @@ class RawQueueHandler(QueueHandler):
             return
         try:
             pickle.dumps(record)
-        except Exception as e:
+        except (pickle.PickleError, AttributeError) as e:
             print(f"Pickle log fail in child {os.getpid()}: {e}")
-            try:
-                self.queue.put(self.prepare(record))
-            except Exception:
-                self.handleError(record)
+            self.queue.put(self.prepare(record))
+        except Exception:
+            self.handleError(record)
         else:
             self.queue.put(record)
