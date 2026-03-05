@@ -20,7 +20,6 @@ def __config(formatter: Formatter,
     level: str | int,
     handlers: Iterable[BaseAsyncHandler],
     force: bool):
-
     min_level = min(handler.level for handler in handlers)
     basicConfig(level=min_level or level, handlers=handlers, force=force)
     root_logger = getLogger()
@@ -39,7 +38,9 @@ def __config(formatter: Formatter,
 
 def __handlers_from_env(prefix, level: str | None):
     result = []
-    console = os.getenv(f'{prefix}LOG_CONSOLE', 'false').lower() == 'true'
+    console = os.getenv(f'{prefix}CONSOLE_LOG_LEVEL', 'INFO').upper() in [
+        'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+    console_json = os.getenv(f'{prefix}CONSOLE_LOG_JSON', 'false').lower() == 'true' # noqa
     file = os.getenv(f'{prefix}LOG_FILE', 'false').lower() == 'true'
     file_json = os.getenv(f'{prefix}LOG_FILE_JSON', 'false').lower() == 'true'
     file_path = os.getenv(f'{prefix}LOG_FILE_PATH', 'data/log.log')
@@ -57,7 +58,10 @@ def __handlers_from_env(prefix, level: str | None):
     colored_formatter = ColoredConsoleFormatter(fmt, time_fmt, use_cache, no_cut=no_cut) # noqa
     if console:
         colors = os.getenv(f'{prefix}LOG_CONSOLE_COLORS', 'true').lower() == 'true' # noqa
-        if colors:
+        if console_json:
+            print('console')
+            console_formatter = JsonFormatter(fmt, time_fmt, use_cache)
+        elif colors:
             console_formatter = colored_formatter
         else:
             console_formatter = mono_formatter
@@ -98,7 +102,6 @@ def config_async_logging(
     force: bool = True,
     env_prefix: str = '',
     mp_que: Queue[LogRecord] = None):
-
     level = level or os.getenv(f'{env_prefix}LOG_LEVEL', 'INFO')
     for handler in handlers or []:
         if handler.level == 0:
