@@ -16,12 +16,17 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "deptry>=0.24.0",
     "gitpython>=3.1.46",
     "pathspec>=1.0.4",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
 ]
+k8s = [
+    "kubernetes>=35.0.0",
+]
+
 
 [tool.coverage.run]
 source = ["src"]
@@ -51,4 +56,5 @@ exclude_lines = [
 ]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["asyncpg"]
+DEP002 = ["asyncpg", "babel"]
+DEP004 = ["git", "kubernetes", "pathspec"]
