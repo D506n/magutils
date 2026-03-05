@@ -1,2 +1,2 @@
-from .env import EnvParsingError, EnvValidationError, environ
+from .env import EnvValidationError, environ
 from .fields import field
