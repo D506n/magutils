@@ -10,15 +10,6 @@ class UndefinedField:
     pass
 
 
-class FieldRequiredError(Exception):
-    def __init__(self, cls: type, name: str):
-        self.field_name = name
-        # self.prefix = _PrefixStorage._storage[cls]
-
-    def __str__(self):
-        return f'Field {self.field_name} is required!'
-
-
 class FieldConstructor():
     def __init__(self, 
                  default_value: Any | None, 

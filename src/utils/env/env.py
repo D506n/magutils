@@ -5,35 +5,14 @@ from typing import get_type_hints
 
 from dotenv import load_dotenv
 
-from .fields import FieldRequiredError
-
 try:
     from .ext import k8s
 except ImportError:
     k8s = None
 
 
-class _PrefixStorage:
-    _storage: dict[type, str] = {}
-
-
-class EnvParsingError(Exception):
-    def __init__(self, cls: type, field: str, expected: type, val):
-        self.prefix = _PrefixStorage._storage[cls]
-        self.field = field
-        self.expected = expected
-        self.val = val
-
-    def __str__(self):
-        return (
-            f'Field {self.prefix}{self.field} parsing error!'
-            'A valid json string representing'
-            f' <{self.expected.__name__}> is expected, '
-            f'received <{type(self.val).__name__}>: {self.val}')
-
-
 class EnvValidationError(Exception):
-    def __init__(self, *errs: FieldRequiredError | EnvParsingError):
+    def __init__(self, *errs):
         self.text = 'Environ can\'t be parsed. Errors:\n' + '\n'.join(
                 [str(e) for e in errs])
 

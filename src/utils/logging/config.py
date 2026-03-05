@@ -59,7 +59,6 @@ def __handlers_from_env(prefix, level: str | None):
     if console:
         colors = os.getenv(f'{prefix}LOG_CONSOLE_COLORS', 'true').lower() == 'true' # noqa
         if console_json:
-            print('console')
             console_formatter = JsonFormatter(fmt, time_fmt, use_cache)
         elif colors:
             console_formatter = colored_formatter
