@@ -16,6 +16,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "gitpython>=3.1.46",
+    "pathspec>=1.0.4",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
@@ -31,7 +33,8 @@ omit = [
     "main.py",
     "src/nlp/regex.py",
     "src/db/tables.py",
-    "routers/**/api_router.py"
+    "routers/**/api_router.py",
+    "checkout_helper.py"
 ]
 
 [tool.coverage.report]
