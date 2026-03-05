@@ -2,7 +2,7 @@ import re
 from collections import deque
 from typing import Any
 
-TEMPLATE_REGEX = re.compile(r'(?<!\{)(\{[a-z\.0-9\+\-\}_]+)(?!\})')
+TEMPLATE_REGEX = re.compile(r'(?<!\{)(\{[a-z\.0-9\+\-_]+\})(?!\})')
 
 
 def get_by_path(obj: dict, path: str):
@@ -77,10 +77,6 @@ def set_by_path(obj, path: str, value):
 
 def format(template: str, data: dict):
     keys = TEMPLATE_REGEX.findall(template)
-    temp = {}
     for key in keys:
-        path = key[1:-1]
-        new_key = path.replace('.', '_')
-        template = template.replace(key, '{%s}' % new_key)
-        temp[new_key] = get_by_path(data, path)
-    return template.format(**temp)
+        template = template.replace(key, str(get_by_path(data, key[1:-1])))
+    return template
