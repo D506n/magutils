@@ -38,7 +38,7 @@ class RedisMixin:
 
 
 class CORSMixin:
-    CORS_ALLOW_ORIGINS: list[str] = field(default_factory=lambda: '["http://localhost:5173"]')  #noqa
+    CORS_ALLOW_ORIGINS: list[str] = field(default_factory=lambda: ["http://localhost:5173"])  #noqa
     CORS_ALLOW_CREDENTIALS: bool = field(True)
-    CORS_ALLOW_METHODS: list[str] = field(default_factory=lambda: '["*"]')
-    CORS_ALLOW_HEADERS: list[str] = field(default_factory=lambda: '["*"]')
+    CORS_ALLOW_METHODS: list[str] = field(default_factory=lambda: ["*"])
+    CORS_ALLOW_HEADERS: list[str] = field(default_factory=lambda: ["*"])
