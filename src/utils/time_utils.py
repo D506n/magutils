@@ -84,6 +84,5 @@ def from_timestamp(timestamp: int | float) -> datetime:
 def get_future_time(delta: int | float) -> datetime: ...  # noqa: F811 перегрузка для типизации
 
 
-@lru_cache()
 def get_future_time(delta: int | float) -> datetime:
     return get_current_time() + timedelta(seconds=delta)
