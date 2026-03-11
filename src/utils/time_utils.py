@@ -1,8 +1,10 @@
 import os
+import time
 import zoneinfo
 from datetime import datetime, timedelta
-from functools import lru_cache
-from typing import overload
+from functools import lru_cache, wraps
+from inspect import iscoroutinefunction
+from typing import Callable, overload
 
 
 @overload
@@ -48,6 +50,10 @@ def get_delta(dt: datetime, dt2: datetime = None):
     return dt2 - dt
 
 
+@overload
+def seconds_stringify(seconds: int) -> str: ...  # noqa: F811 перегрузка для типизации
+
+@lru_cache()
 def seconds_stringify(seconds: int) -> str:
     """Преобразует количество секунд в часы/минуты.
 
@@ -72,6 +78,43 @@ def seconds_stringify(seconds: int) -> str:
 
 
 @overload
+def ns_stringify(ns: int) -> str: ...  # noqa: F811 перегрузка для типизации
+
+@lru_cache()
+def ns_stringify(ns: int) -> str:
+    """Преобразует количество наносекунд в человекочитаемый формат.
+
+    Args:
+        ns: Количество наносекунд (неотрицательное целое).
+
+    Returns:
+        Строка в формате "X s Y ms Z µs W ns", где нулевые единицы пропускаются.
+
+    Raises:
+        ValueError: Если ns отрицательное.
+    """
+    if ns < 0:
+        raise ValueError("ns must be non-negative")
+    if ns == 0:
+        return "0 ns"
+    units = [
+        ("m", 60_000_000_000),
+        ("s", 1_000_000_000),
+        ("ms", 1_000_000),
+        ("µs", 1_000),
+        ("ns", 1),
+    ]
+    parts = []
+    remaining = ns
+    for unit, divisor in units:
+        if remaining >= divisor:
+            value = remaining // divisor
+            remaining %= divisor
+            parts.append(f"{value} {unit}")
+    return " ".join(parts)
+
+
+@overload
 def from_timestamp(timestamp: int | float) -> datetime: ...  # noqa: F811 перегрузка для типизации
 
 
@@ -86,3 +129,27 @@ def get_future_time(delta: int | float) -> datetime: ...  # noqa: F811 пере�
 
 def get_future_time(delta: int | float) -> datetime:
     return get_current_time() + timedelta(seconds=delta)
+
+
+def perf_counter(handler: Callable[[str], None] = print):
+    def inner(func):
+        def printer(st: int):
+            perf = ns_stringify(time.perf_counter_ns() - st)
+            res = f'{func.__name__}: {perf}'
+            handler(res)
+        if iscoroutinefunction(func):
+            @wraps(func)
+            async def wrapper(*args, **kwargs):
+                st = time.perf_counter_ns()
+                result = await func(*args, **kwargs)
+                printer(st)
+                return result
+        else:
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                st = time.perf_counter_ns()
+                result = func(*args, **kwargs)
+                printer(st)
+                return result
+        return wrapper
+    return inner
