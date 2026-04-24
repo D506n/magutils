@@ -42,3 +42,8 @@ class CORSMixin:
     CORS_ALLOW_CREDENTIALS: bool = field(True)
     CORS_ALLOW_METHODS: list[str] = field(default_factory=lambda: ["*"])
     CORS_ALLOW_HEADERS: list[str] = field(default_factory=lambda: ["*"])
+
+
+class APIMixin:
+    API_HOST: str = field('0.0.0.0')
+    API_PORT: int = field(8506)
