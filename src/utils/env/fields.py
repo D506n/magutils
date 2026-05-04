@@ -7,7 +7,8 @@ from pydantic import TypeAdapter
 
 
 class UndefinedField:
-    pass
+    def __bool__(self):
+        return False
 
 
 class FieldConstructor():
@@ -27,7 +28,7 @@ class FieldConstructor():
         self.env_prefix = env_prefix
 
     def _get_value(self, ctx: dict):
-        val = os.getenv(self.env_prefix + self.field_name)
+        val = os.getenv(self.env_prefix + self.field_name, UndefinedField())
 
         if not val and self.aliases:
             for alias in self.aliases:
@@ -35,19 +36,19 @@ class FieldConstructor():
                 if val:
                     break
 
-        if val and isinstance(self.hint, GenericAlias)\
-              or self.hint in {dict, list}:
+        if val and (isinstance(self.hint, GenericAlias) 
+              or self.hint in {dict, list}):
             return self.adapter.validate_json(val)
         elif val:
             return self.adapter.validate_python(val)
 
-        if not isinstance(self.default_value, UndefinedField):
-            return self.default_value
-        elif self.default_factory:
+        if self.default_factory:
             try:
                 return self.default_factory(ctx)
             except TypeError:
                 return self.default_factory()
+        elif not isinstance(self.default_value, UndefinedField):
+            return self.default_value 
 
         raise ValueError(f"No value found for field {self.field_name}")
 

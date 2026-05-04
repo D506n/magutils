@@ -131,7 +131,8 @@ def get_future_time(delta: int | float) -> datetime:
     return get_current_time() + timedelta(seconds=delta)
 
 
-def perf_counter(handler: Callable[[str], None] = print):
+def perf_counter(handler: Callable[[str], None] = print):  # nocov: нужен только
+    # для разработки и тестировать проще руками
     def inner(func):
         def printer(st: int):
             perf = ns_stringify(time.perf_counter_ns() - st)

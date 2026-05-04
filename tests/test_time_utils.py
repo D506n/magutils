@@ -10,7 +10,9 @@ from src.utils.time_utils import (
     from_timestamp,
     get_current_time,
     get_delta,
+    get_future_time,
     get_tz,
+    ns_stringify,
     parse_time,
     seconds_stringify,
 )
@@ -129,3 +131,75 @@ class TestTimeUtils:
         dt2 = from_timestamp(t)
         dt2 = dt2.replace(microsecond=0)
         assert dt == dt2
+
+    @pytest.mark.parametrize(
+        "ns, expected",
+        [
+            (0, "0 ns"),
+            (1, "1 ns"),
+            (999, "999 ns"),
+            (1000, "1 µs"),
+            (1001, "1 µs 1 ns"),
+            (999999, "999 µs 999 ns"),
+            (1000000, "1 ms"),
+            (1000001, "1 ms 1 ns"),
+            (999999999, "999 ms 999 µs 999 ns"),
+            (1000000000, "1 s"),
+            (1000000001, "1 s 1 ns"),
+            (59000000000, "59 s"),
+            (60000000000, "1 m"),
+            (61000000000, "1 m 1 s"),
+            (123456789123, "2 m 3 s 456 ms 789 µs 123 ns"),
+            (3600000000000, "60 m"),  # 60 minutes (1 hour)
+            (3661000000000, "61 m 1 s"),  # 61 minutes 1 second
+        ],
+    )
+    def test_ns_stringify_valid(self, ns, expected):
+        """Тест корректных значений для ns_stringify."""
+        assert ns_stringify(ns) == expected
+
+    def test_ns_stringify_negative_raises_error(self):
+        """Отрицательные наносекунды вызывают ValueError."""
+        with pytest.raises(ValueError, match="ns must be non-negative"):
+            ns_stringify(-1)
+        with pytest.raises(ValueError, match="ns must be non-negative"):
+            ns_stringify(-1000)
+
+    def test_get_future_time_positive_delta(self):
+        """Получение времени в будущем с положительной дельтой."""
+        from unittest.mock import patch
+        fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        with patch("src.utils.time_utils.get_current_time") as mock_now:
+            mock_now.return_value = fixed_now
+            future = get_future_time(3600)  # +1 hour
+            expected = datetime(2023, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
+            assert future == expected
+
+    def test_get_future_time_negative_delta(self):
+        """Получение времени в прошлом с отрицательной дельтой."""
+        from unittest.mock import patch
+        fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        with patch("src.utils.time_utils.get_current_time") as mock_now:
+            mock_now.return_value = fixed_now
+            past = get_future_time(-3600)  # -1 hour
+            expected = datetime(2023, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+            assert past == expected
+
+    def test_get_future_time_float_delta(self):
+        """Получение времени с дробной дельтой."""
+        from unittest.mock import patch
+        fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        with patch("src.utils.time_utils.get_current_time") as mock_now:
+            mock_now.return_value = fixed_now
+            future = get_future_time(90.5)  # 90.5 seconds
+            expected = datetime(2023, 1, 1, 12, 1, 30, 500000, tzinfo=timezone.utc)
+            assert future == expected
+
+    def test_get_future_time_zero_delta(self):
+        """Дельта равна нулю - должно вернуть текущее время."""
+        from unittest.mock import patch
+        fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        with patch("src.utils.time_utils.get_current_time") as mock_now:
+            mock_now.return_value = fixed_now
+            same = get_future_time(0)
+            assert same == fixed_now

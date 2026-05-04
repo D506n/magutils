@@ -235,3 +235,184 @@ class TestEnv:
         assert env_all.DB_TYPE == 'sqlite'
         assert env_all.REDIS_HOST == 'localhost'
         assert env_all.CORS_ALLOW_ORIGINS == ["http://localhost:5173"]
+
+    def test_yaml_basic_functionality(self):
+        """Тест чтения простого значения из YAML файла."""
+        pytest.importorskip('yaml')
+        import yaml
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile('+w', suffix='.yaml', encoding='utf-8') as f:
+            yaml_data = {'simple_key': 'simple_value', 'number': 42}
+            yaml.dump(yaml_data, f)
+            f.flush()
+            
+            from src.utils.env.ext import yaml as yaml_factory
+            
+            # Создаем фабрику
+            factory = yaml_factory(f.name, 'simple_key')
+            
+            # Вызываем фабрику с контекстом
+            ctx = {}
+            result = factory(ctx)
+            assert result == 'simple_value'
+            
+            # Проверяем кэширование
+            assert str(f.name) in ctx
+            assert ctx[str(f.name)] == yaml_data
+
+    def test_yaml_nested_path(self):
+        """Тест чтения вложенного значения через точечную нотацию."""
+        pytest.importorskip('yaml')
+        import yaml
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile('+w', suffix='.yaml', encoding='utf-8') as f:
+            yaml_data = {
+                'services': {
+                    'notification': {
+                        'ports': [8080, 8081],
+                        'enabled': True
+                    }
+                }
+            }
+            yaml.dump(yaml_data, f)
+            f.flush()
+            
+            from src.utils.env.ext import yaml as yaml_factory
+            
+            factory = yaml_factory(f.name, 'services.notification.ports')
+            ctx = {}
+            result = factory(ctx)
+            assert result == [8080, 8081]
+
+    def test_yaml_caching(self):
+        """Тест кэширования YAML файла в контексте."""
+        pytest.importorskip('yaml')
+        import yaml
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile('+w', suffix='.yaml', encoding='utf-8') as f:
+            yaml_data = {'key1': 'value1', 'key2': 'value2'}
+            yaml.dump(yaml_data, f)
+            f.flush()
+            
+            from src.utils.env.ext import yaml as yaml_factory
+            
+            factory1 = yaml_factory(f.name, 'key1')
+            factory2 = yaml_factory(f.name, 'key2')
+            
+            ctx = {}
+            result1 = factory1(ctx)
+            result2 = factory2(ctx)
+            
+            # Файл должен быть прочитан только один раз
+            assert result1 == 'value1'
+            assert result2 == 'value2'
+            # В контексте должен быть только один ключ с содержимым файла
+            assert len(ctx) == 1
+            assert str(f.name) in ctx
+
+    def test_yaml_missing_key_error(self):
+        """Тест ошибки при отсутствии ключа в YAML файле."""
+        pytest.importorskip('yaml')
+        import yaml
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile('+w', suffix='.yaml', encoding='utf-8') as f:
+            yaml_data = {'existing_key': 'value'}
+            yaml.dump(yaml_data, f)
+            f.flush()
+            
+            from src.utils.env.ext import yaml as yaml_factory
+            
+            factory = yaml_factory(f.name, 'non.existing.key')
+            ctx = {}
+            
+            with pytest.raises(KeyError, match='Key.*not found'):
+                factory(ctx)
+
+    def test_yaml_missing_file_error(self):
+        """Тест ошибки при отсутствии YAML файла."""
+        pytest.importorskip('yaml')
+        import tempfile
+        import os
+        
+        from src.utils.env.ext import yaml as yaml_factory
+        
+        # Создаем временный файл и сразу удаляем его
+        with tempfile.NamedTemporaryFile('+w', suffix='.yaml', encoding='utf-8', delete=False) as f:
+            f.write('key: value')
+            temp_path = f.name
+        
+        os.unlink(temp_path)  # Удаляем файл
+        
+        factory = yaml_factory(temp_path, 'key')
+        ctx = {}
+        
+        with pytest.raises(FileNotFoundError):
+            factory(ctx)
+
+    @patch.dict(os.environ, {'DB_HOST': 'postgresql'})
+    def test_yaml_integration_with_environ(self):
+        """Тест интеграции YAML фабрики с environ()."""
+        pytest.importorskip('yaml')
+        import yaml
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile('+w', suffix='.yaml', encoding='utf-8') as f:
+            yaml_data = {
+                'services': {
+                    'app': {
+                        'ports': [3000, 3001],
+                        'debug': True
+                    }
+                }
+            }
+            yaml.dump(yaml_data, f)
+            f.flush()
+            
+            from src.utils.env.ext import yaml as yaml_factory
+            from src.utils.env import environ, field
+            
+            @environ()
+            class EnvWithYaml:
+                # Значение из .env файла (переменная окружения)
+                DB_HOST: str = field()
+                # Значение из YAML файла
+                APP_PORTS: list = field(default_factory=yaml_factory(f.name, 'services.app.ports'))
+                APP_DEBUG: bool = field(default_factory=yaml_factory(f.name, 'services.app.debug'))
+                # Значение по умолчанию, если не найдено ни в .env, ни в YAML
+                DEFAULT_VALUE: int = field(999)
+            
+            env = EnvWithYaml()
+            
+            assert env.DB_HOST == 'postgresql'  # Из переменных окружения
+            assert env.APP_PORTS == [3000, 3001]  # Из YAML файла
+            assert env.APP_DEBUG is True  # Из YAML файла
+            assert env.DEFAULT_VALUE == 999  # Значение по умолчанию
+
+    def test_yaml_priority_over_default(self):
+        """Тест приоритета YAML значения над значением по умолчанию."""
+        pytest.importorskip('yaml')
+        import yaml
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile('+w', suffix='.yaml', encoding='utf-8') as f:
+            yaml_data = {'config_value': 'from_yaml'}
+            yaml.dump(yaml_data, f)
+            f.flush()
+            
+            from src.utils.env.ext import yaml as yaml_factory
+            from src.utils.env import environ, field
+            
+            @environ()
+            class EnvYamlPriority:
+                # YAML значение должно использоваться вместо значения по умолчанию
+                CONFIG_VALUE: str = field(
+                    'default_value',
+                    default_factory=yaml_factory(f.name, 'config_value')
+                )
+            
+            env = EnvYamlPriority()
+            assert env.CONFIG_VALUE == 'from_yaml'
