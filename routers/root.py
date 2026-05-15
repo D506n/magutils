@@ -19,7 +19,7 @@ def _build_subrouter(path: Path, skip_err: bool = False):
             subfolders.append(subpath)
             continue
         module_path = '.'.join(subpath.relative_to(Path.cwd()).parts)\
-            .rstrip('.py')
+            .replace('.py', '')
         if subpath.is_file() and subpath.name == 'api_router.py':
             module: SubMod = imp.import_module(module_path)
             if hasattr(module, 'router'):
