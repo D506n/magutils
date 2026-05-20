@@ -1,11 +1,11 @@
-from src.utils.logging.formatters import MonocolorFormatter, ColoredConsoleFormatter, JsonFormatter
+from src.magutils.logging.formatters import MonocolorFormatter, ColoredConsoleFormatter, JsonFormatter
 from colorama import Fore
 import pytest
 from logging import LogRecord, getLogger
-from src.utils.logging.handlers import AsyncConsoleHandler, AsyncFileHandler, RawQueueHandler
+from src.magutils.logging.handlers import AsyncConsoleHandler, AsyncFileHandler, RawQueueHandler
 import multiprocessing as mp
 import weakref
-from src.utils.logging import config_async_logging
+from src.magutils.logging import config_async_logging
 import os
 import asyncio
 from tempfile import NamedTemporaryFile

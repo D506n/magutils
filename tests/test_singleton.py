@@ -1,4 +1,4 @@
-from src.utils.singleton import singleton
+from src.magutils.singleton import singleton
 
 
 class TestSingleton:

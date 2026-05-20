@@ -6,7 +6,7 @@ import orjson
 import yaml
 from babel.plural import to_python
 
-from .json_path import get_by_path
+from .json_path_old import get_by_path
 from .singleton import singleton
 from .time_utils import get_current_time, get_delta
 

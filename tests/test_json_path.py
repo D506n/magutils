@@ -1,7 +1,7 @@
 import orjson
 import pytest
 
-from src.utils.json_path import format, get_by_path, set_by_path
+from src.magutils.json_path_old import format, get_by_path, set_by_path
 
 
 class TestJsonPath:

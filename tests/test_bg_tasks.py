@@ -2,7 +2,7 @@ import asyncio
 import sys
 from unittest.mock import patch, MagicMock
 import pytest
-from src.utils.bg_tasks import BgTask
+from src.magutils.bg_tasks import BgTask
 
 delay = 0.01
 

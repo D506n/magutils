@@ -2,8 +2,7 @@ from datetime import datetime
 from logging import Formatter
 from zoneinfo import ZoneInfo
 
-from src.utils.time_utils import format_time, get_tz
-
+from ...time_utils import format_time, get_tz
 from . import defaults as DEF
 
 

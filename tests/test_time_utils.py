@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.utils.time_utils import (
+from src.magutils.time_utils import (
     format_time,
     from_timestamp,
     get_current_time,

@@ -2,7 +2,7 @@ from string import ascii_letters, digits
 
 import pytest
 
-from src.utils.id import Config, gen_id, is_valid
+from src.magutils.id import Config, gen_id, is_valid
 
 
 class TestId:
