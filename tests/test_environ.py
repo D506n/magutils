@@ -6,8 +6,8 @@ import pytest
 
 # TODO: доработать парсинг вложенных классов
 # from pydantic.dataclasses import dataclass # noqa к такому мой env пока не готов
-from src.magutils.env_utils import EnvValidationError, environ, field
-from src.magutils.env_utils.mixins import RedisMixin, LoggingMixin, DBMixin, CORSMixin
+from src.magutils.env import EnvValidationError, environ, field
+from src.magutils.env.mixins import RedisMixin, LoggingMixin, DBMixin, CORSMixin
 
 
 class TestEnv:
@@ -247,7 +247,7 @@ class TestEnv:
             yaml.dump(yaml_data, f)
             f.flush()
             
-            from src.magutils.env_utils.ext import yaml as yaml_factory
+            from src.magutils.env.ext import yaml as yaml_factory
             
             # Создаем фабрику
             factory = yaml_factory(f.name, 'simple_key')
@@ -279,7 +279,7 @@ class TestEnv:
             yaml.dump(yaml_data, f)
             f.flush()
             
-            from src.magutils.env_utils.ext import yaml as yaml_factory
+            from src.magutils.env.ext import yaml as yaml_factory
             
             factory = yaml_factory(f.name, 'services.notification.ports')
             ctx = {}
@@ -297,7 +297,7 @@ class TestEnv:
             yaml.dump(yaml_data, f)
             f.flush()
             
-            from src.magutils.env_utils.ext import yaml as yaml_factory
+            from src.magutils.env.ext import yaml as yaml_factory
             
             factory1 = yaml_factory(f.name, 'key1')
             factory2 = yaml_factory(f.name, 'key2')
@@ -324,7 +324,7 @@ class TestEnv:
             yaml.dump(yaml_data, f)
             f.flush()
             
-            from src.magutils.env_utils.ext import yaml as yaml_factory
+            from src.magutils.env.ext import yaml as yaml_factory
             
             factory = yaml_factory(f.name, 'non.existing.key')
             ctx = {}
@@ -338,7 +338,7 @@ class TestEnv:
         import tempfile
         import os
         
-        from src.magutils.env_utils.ext import yaml as yaml_factory
+        from src.magutils.env.ext import yaml as yaml_factory
         
         # Создаем временный файл и сразу удаляем его
         with tempfile.NamedTemporaryFile('+w', suffix='.yaml', encoding='utf-8', delete=False) as f:
@@ -372,8 +372,8 @@ class TestEnv:
             yaml.dump(yaml_data, f)
             f.flush()
             
-            from src.magutils.env_utils.ext import yaml as yaml_factory
-            from src.magutils.env_utils import environ, field
+            from src.magutils.env.ext import yaml as yaml_factory
+            from src.magutils.env import environ, field
             
             @environ()
             class EnvWithYaml:
@@ -403,8 +403,8 @@ class TestEnv:
             yaml.dump(yaml_data, f)
             f.flush()
             
-            from src.magutils.env_utils.ext import yaml as yaml_factory
-            from src.magutils.env_utils import environ, field
+            from src.magutils.env.ext import yaml as yaml_factory
+            from src.magutils.env import environ, field
             
             @environ()
             class EnvYamlPriority:

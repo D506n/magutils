@@ -36,7 +36,7 @@ dependencies = ["magutils"]
   - [i18n](#utilsi18n)
   - [tree_import](#utilstree_import)
   - [checkout_helper](#utilscheckout_helper)
-  - [env_utils](#utilsenv_utils)
+  - [env](#utilsenv)
 
 ### logging
 
@@ -515,7 +515,7 @@ for plugin in plugins:
 python -m magutils.checkout_helper --migration main>demo
 ```
 
-### utils.env_utils
+### utils.env
 
 Модуль для работы с переменными окружения, включая валидацию, загрузку из `.env` файлов, YAML конфигураций и интеграцию с Kubernetes. Основан на декораторе `environ` и функции `field`.
 
@@ -531,7 +531,7 @@ python -m magutils.checkout_helper --migration main>demo
 Базовый пример:
 
 ```python
-from magutils.env_utils import environ, field
+from magutils.env import environ, field
 
 @environ()
 class AppConfig:
@@ -551,8 +551,8 @@ print(config.DATABASE_URL)  # значение из переменной окр�
 #### Загрузка значений из YAML
 
 ```python
-from magutils.env_utils import environ, field
-from magutils.env_utils.ext.yaml_ import yaml
+from magutils.env import environ, field
+from magutils.env.ext.yaml_ import yaml
 
 @environ()
 class YamlConfig:
@@ -571,8 +571,8 @@ config = YamlConfig()
 Требуется установка дополнительных зависимостей (группа `k8s`). Пример:
 
 ```python
-from magutils.env_utils import environ, field
-from magutils.env_utils.ext.k8s import k8s_secret
+from magutils.env import environ, field
+from magutils.env.ext.k8s import k8s_secret
 
 @environ()
 class K8sConfig:
