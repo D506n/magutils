@@ -389,38 +389,36 @@ class TestI18n:
         assert 'en' in i18n.dictionaries
         assert 'ru' in i18n.dictionaries
 
-    def test_scan_dir_missing_plural_rules(self, temp_locdir, tmp_path):
+    def test_scan_dir_missing_plural_rules(self, tmp_path):
         """Отсутствие правил плюрализации для языка вызывает ValueError."""
-        # Создаём кастомный файл правил плюрализации без языка 'fr'
+        # Создаём кастомный файл правил плюрализации только с 'en'
         custom_rules = tmp_path / 'custom_plurals.json'
         custom_rules.write_text('{"en": {}}', encoding='utf-8')
         # Создаём директорию переводов
         translations_dir = tmp_path / 'translations'
         translations_dir.mkdir()
-        # Копируем файлы переводов из temp_locdir
-        for f in temp_locdir.iterdir():
-            if f.is_file():
-                shutil.copy(f, translations_dir / f.name)
-        # Добавляем файл перевода для языка 'fr'
+        # Создаём файл перевода для языка 'en' (есть в правилах)
+        en_file = translations_dir / 'en.json'
+        en_file.write_text('{"hello": "Hello"}', encoding='utf-8')
+        # Создаём файл перевода для языка 'fr' (нет в правилах)
         fr_file = translations_dir / 'fr.json'
         fr_file.write_text('{"hello": "Bonjour"}', encoding='utf-8')
-        # Инициализация должна вызвать ValueError
+        # Инициализация должна вызвать ValueError, потому что для 'fr' нет правил
         with pytest.raises(ValueError, match='Plural rules not found for language: fr'):
             _I18n(translations_dir, plural_rules_path=custom_rules)
 
-    def test_scan_dir_plural_rules_not_dict(self, temp_locdir, tmp_path):
+    def test_scan_dir_plural_rules_not_dict(self, tmp_path):
         """Правило плюрализации не словарь вызывает ValueError."""
-        # Создаём кастомный файл правил, где значение для 'en' - строка
+        # Создаём кастомный файл правил, где значение для 'en' - строка (не словарь)
         custom_rules = tmp_path / 'bad_rules.json'
         custom_rules.write_text('{"en": "not a dict"}', encoding='utf-8')
         # Создаём директорию переводов
         translations_dir = tmp_path / 'translations'
         translations_dir.mkdir()
-        # Копируем файлы переводов из temp_locdir
-        for f in temp_locdir.iterdir():
-            if f.is_file():
-                shutil.copy(f, translations_dir / f.name)
-        # Инициализация должна вызвать ValueError
+        # Создаём файл перевода для языка 'en' (чтобы он был загружен)
+        en_file = translations_dir / 'en.json'
+        en_file.write_text('{"hello": "Hello"}', encoding='utf-8')
+        # Инициализация должна вызвать ValueError, потому что правило для 'en' не словарь
         with pytest.raises(ValueError, match='Plural rules must be a dictionary'):
             _I18n(translations_dir, plural_rules_path=custom_rules)
 
