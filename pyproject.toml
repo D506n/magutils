@@ -45,9 +45,13 @@ all = [
 
 
 [tool.coverage.run]
-source = ["src"]
+source = ["./src/magutils"]
 
-omit = []
+omit = [
+    "__init__.py",
+    "checkout_helper.py",
+    "t.py"
+]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -59,7 +63,7 @@ exclude_lines = [
     "except ImportError",
     "return",
     "# nocov",
-    "pass"
+    "pass",
 ]
 
 [tool.deptry.per_rule_ignores]
