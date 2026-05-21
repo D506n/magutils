@@ -25,7 +25,8 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
     "telegrinder>=0.5.1",
-    "fastapi[standard]>=0.136.1"
+    "fastapi[standard]>=0.136.1",
+    "ruff>=0.15.13",
 ]
 k8s = [
     "kubernetes>=35.0.0",
