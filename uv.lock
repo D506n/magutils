@@ -967,6 +967,7 @@ dependencies = [
     { name = "nanoid" },
     { name = "orjson" },
     { name = "pydantic" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -1009,6 +1010,7 @@ requires-dist = [
     { name = "nanoid", specifier = ">=2.0.0" },
     { name = "orjson", specifier = ">=3.11.4" },
     { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [package.metadata.requires-dev]

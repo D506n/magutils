@@ -4,6 +4,7 @@ token.json
 logs/
 *.db
 t.py
+.justfile
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
