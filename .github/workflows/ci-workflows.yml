@@ -7,9 +7,6 @@ on:
   pull_request:
     branches:
       - main
-  push:
-    tags:
-      - "*"
 
 permissions:
   contents: write
@@ -71,7 +68,4 @@ jobs:
         run: uv build
 
       - name: Publish Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*
+        uses: softp
