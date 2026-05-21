@@ -72,7 +72,7 @@ class TestTimeUtils:
     def test_get_delta_now(self):
         """Разница между двумя датами (сейчас и заданная)."""
         past = datetime(2023, 1, 1, tzinfo=timezone.utc)
-        with patch("src.utils.time_utils.get_current_time") as mock_now:
+        with patch("src.magutils.time_utils.get_current_time") as mock_now:
             mock_now.return_value = datetime(2023, 1, 2, tzinfo=timezone.utc)
             delta = get_delta(past)
             assert delta.days == 1
@@ -169,7 +169,7 @@ class TestTimeUtils:
         """Получение времени в будущем с положительной дельтой."""
         from unittest.mock import patch
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        with patch("src.utils.time_utils.get_current_time") as mock_now:
+        with patch("src.magutils.time_utils.get_current_time") as mock_now:
             mock_now.return_value = fixed_now
             future = get_future_time(3600)  # +1 hour
             expected = datetime(2023, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
@@ -179,7 +179,7 @@ class TestTimeUtils:
         """Получение времени в прошлом с отрицательной дельтой."""
         from unittest.mock import patch
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        with patch("src.utils.time_utils.get_current_time") as mock_now:
+        with patch("src.magutils.time_utils.get_current_time") as mock_now:
             mock_now.return_value = fixed_now
             past = get_future_time(-3600)  # -1 hour
             expected = datetime(2023, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
@@ -189,7 +189,7 @@ class TestTimeUtils:
         """Получение времени с дробной дельтой."""
         from unittest.mock import patch
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        with patch("src.utils.time_utils.get_current_time") as mock_now:
+        with patch("src.magutils.time_utils.get_current_time") as mock_now:
             mock_now.return_value = fixed_now
             future = get_future_time(90.5)  # 90.5 seconds
             expected = datetime(2023, 1, 1, 12, 1, 30, 500000, tzinfo=timezone.utc)
@@ -199,7 +199,7 @@ class TestTimeUtils:
         """Дельта равна нулю - должно вернуть текущее время."""
         from unittest.mock import patch
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        with patch("src.utils.time_utils.get_current_time") as mock_now:
+        with patch("src.magutils.time_utils.get_current_time") as mock_now:
             mock_now.return_value = fixed_now
             same = get_future_time(0)
             assert same == fixed_now
