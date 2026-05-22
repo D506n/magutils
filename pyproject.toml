@@ -29,6 +29,7 @@ dev = [
     "telegrinder>=0.5.1",
     "fastapi[standard]>=0.136.1",
     "ruff>=0.15.13",
+    "starlark-pyo3>=2026.1",
 ]
 k8s = [
     "kubernetes>=35.0.0",

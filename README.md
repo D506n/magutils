@@ -40,6 +40,8 @@ uv add git+https://github.com/D506n/magutils
   - [tree_import](#utilstree_import)
   - [checkout_helper](#utilscheckout_helper)
   - [env](#utilsenv)
+  - [jwt](#utilsjwt)
+  - [starlark](#utilsstarlark)
 
 ### logging
 
@@ -807,6 +809,113 @@ class ComplexConfig:
     ALLOWED_HOSTS: List[str] = field(default_factory=lambda: ['localhost'])
     # Переменная окружения ALLOWED_HOSTS должна содержать JSON-массив строк
 ```
+
+### utils.jwt
+
+Модуль для работы с JSON Web Tokens (JWT) – кодирование, декодирование и проверка подписи с использованием алгоритма HMAC-SHA256. Поддерживает автоматическую загрузку секрета из переменной окружения `JWT_SECRET`.
+
+#### Основные функции
+
+- `jwt_encode(payload: dict, secret: str = None, headers: dict = None) -> str` – кодирует payload в JWT токен.
+- `jwt_decode(token: str, secret: str = None) -> DecodeResult` – декодирует и проверяет JWT токен, возвращает словарь с заголовками, payload и подписью.
+
+#### Класс Config
+
+Метакласс `Config` управляет конфигурацией по умолчанию:
+- `secret` – секрет для подписи, загружается из `JWT_SECRET` или вызывает `KeyError` если обратиться к нему без предварительной установки, или переменной окружения.
+- `default_header` – заголовок по умолчанию (`{"alg": "HS256", "typ": "JWT"}`).
+- `precomp_header` – предвычисленный base64 заголовка (кэшируется).
+- `hmac(secret)` – возвращает HMAC объект для подписи.
+
+#### Пример использования
+
+```python
+import os
+os.environ['JWT_SECRET'] = 'supersecret'
+
+from magutils.jwt import jwt_encode, jwt_decode
+
+payload = {"user_id": 42, "exp": 1672531200}
+token = jwt_encode(payload)
+print(token)  # eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0MiwiZXhwIjoxNjcyNTMxMjAwfQ...
+
+decoded = jwt_decode(token)
+print(decoded['payload'])  # {'user_id': 42, 'exp': 1672531200}
+```
+
+#### Обработка ошибок
+
+- `KeyError` – если секрет не задан в окружении и не передан явно.
+- `ValueError` – при неверной подписи, истёкшем токене или некорректном формате.
+
+### utils.starlark
+
+Модуль для асинхронного выполнения скриптов на языке Starlark (подмножество Python) в изолированном контексте. Позволяет безопасно выполнять пользовательские скрипты с доступом к ограниченному набору функций (regex, время, JSON, вывод).
+
+#### Основные классы
+
+- `StarResult` – результат выполнения скрипта, со следующими полями:
+    -  `success`: `bool` - был ли запуск успешен
+    - `result`: `list|dict` - результат работы скрипта, если скрипт ничего не вернул, `result` будет содержать пустой `dict`
+    - `prints`: `list[str]` - отладочный вывод, содержит список строк переданных в функцию `print` во время исполнения скрипта
+    - `error`: `Exception` в случае возникновения ошибки, содержит экземпляр этой ошибки
+- `Runner` – основной класс для выполнения скриптов
+
+#### Функции и методы
+
+- `Runner.run(script: str, data, wraper: str = None) -> Awaitable[StarResult]` – асинхронно выполняет скрипт с входными данными.
+- `Runner.inst(wraper: str = None) -> Runner` – возвращает синглтон-инстанс Runner для заданного wrapper'а.
+- `StarResult.result` – свойство, возвращающее результат или выбрасывающее исключение при ошибке.
+
+#### Встроенные функции в рантайме Starlark
+
+В скриптах доступны следующие функции и структуры:
+
+- `print(*msgs)` – вывод сообщений (сохраняется в `StarResult.prints`).
+- `re` – структура с методами:
+  - `re.findall(pattern, text)` – аналог `re.findall` в Python.
+  - `re.search(pattern, text, group=0)` – поиск первого совпадения regex.
+- `time` – структура с методами времени:
+  - `time.now()` – текущее время в секундах с эпохи.
+  ...
+- `json.encode(obj)`, `json.decode(str)` – работа с JSON строками внутри starlark скрипта (предоставляется библиотекой starlark-pyo3).
+
+#### Wrapper по умолчанию
+
+Скрипт автоматически оборачивается в шаблон, который определяет функцию `process(input)` и возвращает результат в виде словаря или списка. Если результат не dict/list, он упаковывается в `{'result': ...}`. Пустой результат преобразуется в `{}`. Также wrapper предоставляет структуры `re` и `time` для доступа к regex и времени.
+
+#### Пример использования
+
+```python
+import asyncio
+from magutils.star import Runner
+
+async def main():
+    script = """
+print("Processing input")
+match = re.search(r'\\d+', input['text'])
+return {'match': match}
+"""
+    data = {'text': 'abc123def'}
+    result = await Runner.run(script, data)
+    if result.success:
+        print(result.result)      # {'match': '123'}
+        print(result.prints)      # ['Processing input']
+    else:
+        print(result.error)       # исключение
+
+asyncio.run(main())
+```
+
+#### Установка зависимостей
+
+Модуль требует установки `starlark-pyo3`:
+
+```bash
+uv add starlark-pyo3
+```
+
+При импорте, если библиотека отсутствует, будет выброшено `ImportError` с подсказкой.
 
 ## Лицензия
 
