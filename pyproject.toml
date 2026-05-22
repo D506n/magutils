@@ -68,7 +68,7 @@ exclude_lines = [
 ]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["asyncpg", "babel"]
+DEP002 = ["asyncpg", "babel", "tzdata]
 DEP004 = ["git", "kubernetes", "pathspec", "fastapi", "telegrinder"]
 
 [build-system]
