@@ -3,7 +3,7 @@ import sys
 import traceback
 from functools import partial
 from logging import getLogger
-from typing import Coroutine, Self
+from typing import Awaitable, Self
 
 logger = getLogger(__name__)
 
@@ -15,14 +15,14 @@ class BgTask:
         self.tasks: dict[int, a.Task] = {}
 
     @classmethod
-    def create(cls, *coros: Coroutine, raise_errors: bool = False):
+    def create(cls, *coros: Awaitable, raise_errors: bool = False):
         if not cls.__inst:
             cls.__inst = cls()
         self = cls.__inst
 
         for coro in coros:
-            if not isinstance(coro, Coroutine):
-                raise TypeError('coro must be a coroutine')
+            if not isinstance(coro, Awaitable):
+                raise TypeError('coro must be a Awaitable')
             task = a.create_task(coro)
             task.add_done_callback(
                 partial(self._task_done, raise_errors=raise_errors))

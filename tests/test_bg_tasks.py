@@ -87,7 +87,7 @@ class TestBgTask:
     
     def test_create_with_non_coroutine(self, reset_bg_task):
         """Тест создания задачи с не-корутиной."""
-        with pytest.raises(TypeError, match="coro must be a coroutine"):
+        with pytest.raises(TypeError, match="coro must be a Awaitable"):
             BgTask.create("not a coroutine")
     
     @pytest.mark.asyncio
