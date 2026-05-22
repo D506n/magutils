@@ -34,6 +34,7 @@ uv add git+https://github.com/D506n/magutils
   - [singleton](#utilssingleton)
   - [time_utils](#utilstime_utils)
   - [bg_tasks](#utilsbg_tasks)
+  - [pubsub](#utilspubsub)
   - [schedulled_tasks](#utilsschedulled_tasks)
   - [i18n](#utilsi18n)
   - [tree_import](#utilstree_import)
@@ -387,6 +388,31 @@ async def my_task():
 
 BgTask.create(my_task())
 ```
+
+### utils.pubsub
+
+Класс `PubSub` для реализации системы событий (паттерн «Наблюдатель»). Позволяет подписываться на события асинхронными колбэками и эмитировать события с передачей полезной нагрузки.
+
+Пример:
+
+```python
+from magutils.pubsub import PubSub
+import asyncio
+
+async def handler(payload):
+    print(f"Received: {payload}")
+
+event = PubSub[dict]()
+unsubscribe = event.subscribe(handler)
+event.emit({"data": "test"})
+await asyncio.sleep(0.1)  # дать время на выполнение асинхронных задач
+unsubscribe()
+```
+
+Методы:
+- `subscribe(callback)` – подписывает асинхронный колбэк, возвращает функцию для отписки.
+- `emit(payload, raise_errors=False)` – эмитирует событие, вызывая все подписанные колбэки.
+- `unsubscribe(key)` – внутренний метод для отписки по ключу.
 
 ### utils.schedulled_tasks
 
