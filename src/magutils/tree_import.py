@@ -5,6 +5,40 @@ from pathlib import Path
 logger = getLogger(__name__)
 
 
+def _load_entity(
+        subpath: Path, 
+        subfolders: list[Path], 
+        mod_name: str, 
+        entity_type: type,
+        skip_err: bool):
+    entity = None
+    if subpath.is_dir() and not subpath.name.startswith('_'):
+        subfolders.append(subpath)
+    module_path = str(subpath)\
+        .replace('/', '.')\
+        .replace('\\', '.')\
+        .replace('.py', '')
+    if subpath.is_file() and subpath.name == mod_name:
+        module = imp.import_module(module_path)
+        check = False
+        for name in dir(module):
+            if isinstance(getattr(module, name), entity_type):
+                entity = getattr(module, name)
+                check = True
+        if check:
+            logger.info(f'Found entity {module_path}')
+        elif not skip_err:
+            logger.error(f'Entity not found {module_path}')
+            raise ModuleNotFoundError(f'Entity not found {module_path}')
+        else:
+            logger.warning(f'Entity not found {module_path}')
+    elif subpath.is_file()\
+            and subpath.name != '__init__.py'\
+            and subpath.suffix == '.py':
+        imp.import_module(module_path)
+    return entity
+
+
 def _build_branch(
         entity_type: type, 
         add_name: str, 
@@ -12,36 +46,12 @@ def _build_branch(
         path: Path, 
         skip_err: bool = False):
     subfolders: list[Path] = []
-    entity = None
     for subpath in path.iterdir():
-        if subpath.is_dir() and not subpath.name.startswith('_'):
-            subfolders.append(subpath)
-            continue
-        module_path = str(subpath)\
-            .replace('/', '.')\
-            .replace('\\', '.')\
-            .replace('.py', '')
-        if subpath.is_file() and subpath.name == mod_name:
-            module = imp.import_module(module_path)
-            check = False
-            for name in dir(module):
-                if isinstance(getattr(module, name), entity_type):
-                    entity = getattr(module, name)
-                    check = True
-            if check:
-                logger.info(f'Found entity {module_path}')
-            elif not skip_err:
-                logger.error(f'Entity not found {module_path}')
-                raise ModuleNotFoundError(f'Entity not found {module_path}')
-            else:
-                logger.warning(f'Entity not found {module_path}')
-        elif subpath.is_file()\
-                and subpath.name != '__init__.py'\
-                and subpath.suffix == '.py':
-            imp.import_module(module_path)
+        entity = _load_entity(
+            subpath, subfolders, mod_name, entity_type, skip_err)
     for subfolder in subfolders:
         sub_entity = _build_branch(
-                entity_type, add_name, mod_name, subfolder, skip_err)
+            entity_type, add_name, mod_name, subfolder, skip_err)
         if sub_entity:
             getattr(entity, add_name)(sub_entity)
     return entity
