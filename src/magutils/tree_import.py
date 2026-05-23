@@ -1,8 +1,26 @@
 import importlib as imp
+from functools import lru_cache
 from logging import getLogger
 from pathlib import Path
 
 logger = getLogger(__name__)
+
+
+@lru_cache(1)
+def _get_root_path():
+    root = Path(__file__).parent
+    while 'pyproject.toml' not in [p.name for p in root.iterdir()]:
+        root = root.parent
+    return root
+
+
+def _path_to_module(path: Path) -> str:
+    root = _get_root_path()
+    mod = path.relative_to(root)
+    return str(mod)\
+        .replace('/', '.')\
+        .replace('\\', '.')\
+        .replace('.py', '')
 
 
 def _load_entity(
@@ -14,10 +32,7 @@ def _load_entity(
     entity = None
     if subpath.is_dir() and not subpath.name.startswith('_'):
         subfolders.append(subpath)
-    module_path = str(subpath)\
-        .replace('/', '.')\
-        .replace('\\', '.')\
-        .replace('.py', '')
+    module_path = _path_to_module(subpath)
     if subpath.is_file() and subpath.name == mod_name:
         module = imp.import_module(module_path)
         check = False
