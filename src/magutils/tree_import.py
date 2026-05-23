@@ -40,7 +40,8 @@ def _build_branch(
                 and subpath.suffix == '.py':
             imp.import_module(module_path)
     for subfolder in subfolders:
-        sub_entity = _build_branch(entity_type, add_name, mod_name, subfolder, skip_err)
+        sub_entity = _build_branch(
+                entity_type, add_name, mod_name, subfolder, skip_err)
         if sub_entity:
             getattr(entity, add_name)(sub_entity)
     return entity
