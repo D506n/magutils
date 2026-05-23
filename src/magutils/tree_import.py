@@ -17,7 +17,10 @@ def _build_branch(
         if subpath.is_dir() and not subpath.name.startswith('_'):
             subfolders.append(subpath)
             continue
-        module_path = str(subpath).replace('/', '.').replace('.py', '')
+        module_path = str(subpath)\
+            .replace('/', '.')\
+            .replace('\\', '.')\
+            .replace('.py', '')
         if subpath.is_file() and subpath.name == mod_name:
             module = imp.import_module(module_path)
             check = False
