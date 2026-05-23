@@ -1,6 +1,6 @@
 [project]
 name = "magutils"
-version = "0.3.0"
+version = "0.3.1"
 description = "Набор удобных инструментов для Python приложений."
 readme = "README.md"
 requires-python = ">=3.12"
