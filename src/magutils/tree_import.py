@@ -61,9 +61,12 @@ def _build_branch(
         path: Path, 
         skip_err: bool = False):
     subfolders: list[Path] = []
+    entity = None
     for subpath in path.iterdir():
-        entity = _load_entity(
+        temp = _load_entity(
             subpath, subfolders, mod_name, entity_type, skip_err)
+        if temp:
+            entity = temp
     for subfolder in subfolders:
         sub_entity = _build_branch(
             entity_type, add_name, mod_name, subfolder, skip_err)
