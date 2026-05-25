@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock, AsyncMock, ANY
 import pytest
 from magutils.pubsub import PubSub
 
@@ -97,11 +97,13 @@ class TestEvent:
         event.subscribe(failing_callback)
 
         with patch('sys.exit') as mock_exit:
-            event.emit({"test": "data"}, raise_errors=True)
-            await asyncio.sleep(0.01)
+            with patch('magutils.bg_tasks.logger') as mock_logger:
+                event.emit({"test": "data"}, raise_errors=True)
+                await asyncio.sleep(0.01)
             
-            # Проверяем, что sys.exit был вызван
-            mock_exit.assert_called_once_with(1)
+                # Проверяем, что sys.exit был вызван
+                mock_exit.assert_called_once_with(1)
+                mock_logger.critical.assert_called_once_with('Got critical error in background task. %s', ANY)
 
     def test_subscribe_with_sync_callback_raises(self):
         """Тест, что синхронный колбэк вызывает TypeError при вызове."""
