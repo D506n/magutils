@@ -42,6 +42,7 @@ uv add git+https://github.com/D506n/magutils
   - [env](#utilsenv)
   - [jwt](#utilsjwt)
   - [starlark](#utilsstarlark)
+  - [fsm](#utilsfsm)
 
 ### logging
 
@@ -916,6 +917,165 @@ uv add starlark-pyo3
 ```
 
 При импорте, если библиотека отсутствует, будет выброшено `ImportError` с подсказкой.
+
+### utils.fsm
+
+Лёгковесный модуль для хранения состояний и вызова коллбэков при переходах между ними. Это не полноценная FSM с построением графа состояний, валидацией переходов и т.д., а минималистичная группа состояний с низким оверхедом.
+
+#### Основные компоненты
+
+- **`State`** – класс, представляющий отдельное состояние с возможностью регистрации коллбэков на вход, выход и прогресс.
+- **`StateGroup[T]`** – группа состояний, объединяющая несколько `State` в одну логическую единицу с возможностью переходов между ними.
+- **`StateEvent`**, **`GroupEvent`** – события, передаваемые в коллбэки.
+- **`StateError`** – исключение для ошибок, связанных с состояниями.
+
+#### Создание состояний
+
+```python
+from magutils.fsm import State, StateGroup
+
+class MyFSM(StateGroup):
+    # Объявляем состояния как атрибуты класса
+    init = State("init", start=True)          # стартовое состояние
+    processing = State("processing")
+    done = State("done", final=True)          # финальное состояние
+```
+
+#### Коллбэки состояний
+
+Каждое состояние может иметь коллбэки на вход (`on_enter`), выход (`on_exit`) и прогресс (`on_progress`). Коллбэки – асинхронные функции, принимающие `StateEvent`.
+
+```python
+@MyFSM.init.on_exit
+async def handle_exit_init(event):
+    print(f"Exiting {event.state.name}")
+
+@MyFSM.processing.on_enter
+async def handle_enter_processing(event):
+    print(f"Entering {event.state.name}")
+    # event.model содержит привязанную модель (если есть)
+```
+
+#### Коллбэки группы
+
+Группа может иметь коллбэки на старт (`on_start`) и завершение (`on_finish`). Завершение вызывается при переходе в финальное состояние.
+
+```python
+@MyFSM.on_start
+async def handle_start(event):
+    print(f"FSM {event.group.id} started")
+
+@MyFSM.on_finish
+async def handle_finish(event):
+    print(f"FSM {event.group.id} finished")
+```
+
+#### Работа с экземпляром
+
+```python
+# Создание экземпляра
+fsm = MyFSM(id="my-fsm-1")
+
+# Синхронный переход (запускает асинхронный коллбэк в фоне)
+fsm.emit_nowait("processing")
+
+# Асинхронный переход с ожиданием коллбэков
+await fsm.emit("done")
+
+# Текущее состояние
+print(fsm.current_state.name)  # "done"
+```
+
+#### Привязка модели данных
+
+`StateGroup` поддерживает типизацию через дженерик `StateGroup[MyModel]`, где `MyModel` – класс `pydantic.BaseModel`. Модель передаётся в конструктор и доступна в коллбэках через `event.model`.
+
+```python
+from pydantic import BaseModel
+
+class Order(BaseModel):
+    id: str
+    amount: float
+
+class OrderFSM(StateGroup[Order]):
+    created = State("created", start=True)
+    paid = State("paid")
+
+order = Order(id="123", amount=99.99)
+fsm = OrderFSM(model=order)
+
+@OrderFSM.paid.on_enter
+async def on_paid(event):
+    # Модель автоматически передаётся
+    print(f"Order {event.model.id} paid")
+```
+
+#### Сериализация и восстановление
+
+Группа может быть сериализована в словарь (`dump`) и восстановлена (`load`). Сериализуются идентификатор, текущее состояние и модель (если она является pydantic моделью).
+
+```python
+# Дамп
+packed = await fsm.dump()
+# {
+#     'name': 'OrderFSM',
+#     'id': '...',
+#     'current_state': 'paid',
+#     'model': {'path': '...', 'data': {...}}
+# }
+
+# Загрузка
+restored = OrderFSM.load(packed)
+```
+
+#### Обработка ошибок
+
+- `StateError` выбрасывается при попытке перехода в несуществующее состояние, из финального состояния, при дублировании имён и т.п.
+- Коллбэки, выбрасывающие исключения, логируются, но не прерывают работу FSM.
+
+#### Особенности
+
+- **Минимальный оверхед**: нет сложной валидации графа переходов.
+- **Асинхронность**: все коллбэки асинхронные, выполняются через `BgTask`.
+- **Потокобезопасность**: переходы защищены `asyncio.Lock`.
+- **Типизация**: полная поддержка типов через дженерики.
+
+#### Пример полного цикла
+
+```python
+import asyncio
+from magutils.fsm import State, StateGroup
+from pydantic import BaseModel
+
+class TaskModel(BaseModel):
+    title: str
+    progress: int = 0
+
+class TaskFSM(StateGroup[TaskModel]):
+    todo = State("todo", start=True)
+    in_progress = State("in_progress")
+    done = State("done", final=True)
+
+@TaskFSM.todo.on_exit
+async def log_exit_todo(event):
+    print(f"Task '{event.model.title}' left TODO")
+
+@TaskFSM.in_progress.on_enter
+async def start_work(event):
+    event.model.progress = 50
+    print(f"Task '{event.model.title}' in progress")
+
+async def main():
+    task = TaskModel(title="Implement FSM")
+    fsm = TaskFSM(model=task)
+    
+    await fsm.emit("in_progress")
+    await fsm.emit("done")
+    
+    print(f"Final progress: {fsm.model.progress}")  # 50
+
+asyncio.run(main())
+```
 
 ## Лицензия
 
