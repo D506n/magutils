@@ -20,6 +20,8 @@ group_etypes = Literal['Started', 'Finished']
 
 
 class StateEvent[T]():
+    __slots__ = ('type', 'state', 'model')
+
     def __init__(self, 
             event_type: state_etypes, 
             state: 'State', 
@@ -30,12 +32,28 @@ class StateEvent[T]():
 
 
 class GroupEvent[T]():
+    __slots__ = ('type', 'group', 'model')
+
     def __init__(self, 
             event_type: group_etypes, 
             group: 'StateGroup', 
             model: T | None = None):
         self.type = event_type
         self.group = group
+        self.model = model
+
+
+class TransitionEvent[T]():
+    __slots__ = ('group', 'from_state', 'to_state', 'model')
+
+    def __init__(self, 
+                        group: 'StateGroup', 
+                        from_state: 'State', 
+                        to_state: 'State',
+                        model: T | None = None):
+        self.group = group
+        self.from_state = from_state
+        self.to_state = to_state
         self.model = model
 
 
@@ -58,6 +76,7 @@ class PackedStateGroup(TypedDict):
 
 StateCallbackType = Callable[[StateEvent], Awaitable[None]]
 GroupCallbackType = Callable[[GroupEvent], Awaitable[None]]
+TransitionCallbackType = Callable[[TransitionEvent], Awaitable[None]]
 
 
 class StateError(Exception):

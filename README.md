@@ -926,7 +926,7 @@ uv add starlark-pyo3
 
 - **`State`** – класс, представляющий отдельное состояние с возможностью регистрации коллбэков на вход, выход и прогресс.
 - **`StateGroup[T]`** – группа состояний, объединяющая несколько `State` в одну логическую единицу с возможностью переходов между ними.
-- **`StateEvent`**, **`GroupEvent`** – события, передаваемые в коллбэки.
+- **`StateEvent`**, **`GroupEvent`**, **`TransitionEvent`** – события, передаваемые в коллбэки.
 - **`StateError`** – исключение для ошибок, связанных с состояниями.
 
 #### Создание состояний
@@ -958,7 +958,7 @@ async def handle_enter_processing(event):
 
 #### Коллбэки группы
 
-Группа может иметь коллбэки на старт (`on_start`) и завершение (`on_finish`). Завершение вызывается при переходе в финальное состояние.
+Группа может иметь коллбэки на старт (`on_start`), завершение (`on_finish`) и переход между состояниями (`on_transition`). Завершение вызывается при переходе в финальное состояние. Коллбэк перехода вызывается перед изменением состояния (но после проверок) и получает информацию об исходном и целевом состояниях.
 
 ```python
 @MyFSM.on_start
@@ -968,6 +968,11 @@ async def handle_start(event):
 @MyFSM.on_finish
 async def handle_finish(event):
     print(f"FSM {event.group.id} finished")
+
+@MyFSM.on_transition
+async def handle_transition(event):
+    print(f"Transition from {event.from_state.name} to {event.to_state.name}")
+    # event.model содержит привязанную модель (если есть)
 ```
 
 #### Работа с экземпляром

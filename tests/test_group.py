@@ -373,3 +373,41 @@ class TestStateGroup:
             mock_import.assert_not_called()
         assert group2.model.value == 42
         assert group2.id == "id2"
+
+    @pytest.mark.asyncio
+    async def test_transition_callback(self, reset_bg_task):
+        """Проверка коллбэка на переход между состояниями."""
+        class MyGroup(StateGroup):
+            state1 = State("state1", start=True)
+            state2 = State("state2")
+
+        transition_mock = AsyncMock()
+        MyGroup.on_transition(transition_mock)
+
+        group = MyGroup()
+        await group.emit("state2")
+
+        # Проверяем, что коллбэк был вызван с правильными аргументами
+        transition_mock.assert_called_once()
+        event = transition_mock.call_args[0][0]
+        assert event.group is group
+        assert event.from_state.name == "state1"
+        assert event.to_state.name == "state2"
+        assert event.model is None
+
+    @pytest.mark.asyncio
+    async def test_transition_callback_with_model(self, reset_bg_task):
+        """Проверка коллбэка перехода с моделью."""
+        class MyGroup(StateGroup[SimpleModel]):
+            state1 = State("state1", start=True)
+            state2 = State("state2")
+
+        transition_mock = AsyncMock()
+        MyGroup.on_transition(transition_mock)
+
+        model = SimpleModel(value=99)
+        group = MyGroup(model=model)
+        await group.emit("state2")
+
+        event = transition_mock.call_args[0][0]
+        assert event.model is model

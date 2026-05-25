@@ -14,6 +14,8 @@ from .types import (
     GroupEvent,
     PackedStateGroup,
     StateError,
+    TransitionCallbackType,
+    TransitionEvent,
     group_etypes,
 )
 
@@ -26,6 +28,7 @@ MODELS_CACHE: dict[str, BaseModel] = {}
 class StateGroup[T]():
     start_callback: GroupCallbackType = None
     finish_callback: GroupCallbackType = None
+    transition_callback: TransitionCallbackType = None
 
     def __init__(self, 
                 id: str = None,
@@ -62,6 +65,11 @@ class StateGroup[T]():
         self.can_pack.clear()
         BgTask.create(self._emit_callback(typ))
 
+    async def _emit_transition(self, from_state: State, to_state: State):
+        cb = self.__class__.transition_callback
+        if cb:
+            await cb(TransitionEvent(self, from_state, to_state, self.model))
+
     @classmethod
     def on_start(cls, callback: GroupCallbackType):
         cls.start_callback = callback
@@ -70,6 +78,11 @@ class StateGroup[T]():
     @classmethod
     def on_finish(cls, callback: GroupCallbackType):
         cls.finish_callback = callback
+        return callback
+
+    @classmethod
+    def on_transition(cls, callback: TransitionCallbackType):
+        cls.transition_callback = callback
         return callback
 
     @classmethod
@@ -103,7 +116,9 @@ class StateGroup[T]():
 
     async def emit(self, state: str):
         new_state = self.get_new_state(state)
+        curr_state = self.current_state
         async with self.lock:
+            await self._emit_transition(curr_state, new_state)
             if new_state is self.current_state:
                 await self.current_state._emit_callback(
                     'ProgressState', self.model)
