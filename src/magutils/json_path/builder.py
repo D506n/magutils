@@ -5,6 +5,7 @@ from .intent import Del, Get, Set
 from .states import (
     DelState,
     IndexAccess,
+    IndexSet,
     KeyAccess,
     KeySetAccess,
     ListAppend,
@@ -18,6 +19,7 @@ STATES: list[State] = [
     DelState(),
     KeyAccess(),
     IndexAccess(),
+    IndexSet(),
     KeySetAccess(),
     ListAppend(),
     WGet(),

@@ -142,6 +142,28 @@ class ListAppend(State):
         self.next_step(ctx)
 
 
+class IndexSet(IndexAccess):
+    def compile_check(self, path, pos, intent):
+        return isinstance(path[pos], int) and intent == Set 
+
+    def run_check(self, ctx):
+        return (
+            not ctx.is_key(ctx.key) and (ctx.key >= len(ctx.data)
+            # or (ctx.intent == Set and ctx.key not in ctx.data)
+            or (ctx.intent == Set and ctx.last_pos))
+        )
+
+    def priority(self, path, pos, intent):
+        return 0
+
+    def __call__(self, ctx: Ctx):
+        if 0 < ctx.key < len(ctx.data):
+            ctx.data[ctx.key] = ctx.value
+        else:
+            ctx.data.append(ctx.value)
+        self.next_step(ctx)
+
+
 class WildcardState(State):
     def compile_check(self, path, pos, intent):
         key = path[pos]

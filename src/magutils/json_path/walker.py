@@ -1,3 +1,6 @@
+import re
+from collections.abc import Mapping
+from copy import deepcopy
 from functools import lru_cache
 from typing import Any, Self, TypeVar, overload
 
@@ -7,6 +10,7 @@ from .intent import Del, Get, Intent, Set
 from .states import WildcardState
 
 T = TypeVar('T', bound=list)
+FORMAT_REGEX = re.compile(r'(?<!\{)(\{[a-z\.0-9\+\-_]+\})(?!\})')
 
 
 class Walker[T]():
@@ -145,14 +149,44 @@ def rebuild(*paths: str, data: dict | list, silent=True):
         temp = fwalker.walk(data, silent=silent)
         if len(result) < len(temp.result):
             twalker = Walker.make(tpath, Set)
-            result = [twalker.template() for _ in range(len(temp.result))]
+            if len(twalker.path) > 1:
+                result = [twalker.template() for _ in range(len(temp.result))]
+            elif isinstance(twalker.path[0], int)\
+                    or twalker.path[0] in {'!a', '*'}:
+                result = []
+            else:
+                result = {}
         twalkers = [
             Walker.make(
                 tpath.replace('*', '{i}').format(i=idx), Set) 
                     for idx in range(len(temp.result))]
         res = result
-        if len(twalkers) == 1 and not tpath.startswith('*'):
+        if len(twalkers) == 1 and not tpath.startswith('*')\
+                and len(res) > 0 and isinstance(res, list):
             res = res[0]
         for val, twalker in zip(temp.result, twalkers):
             twalker.walk(res, val, silent=silent)
     return result
+
+
+def __deepmerge(old: dict, new: dict):
+    for k, v in new.items():
+        if isinstance(v, Mapping):
+            old[k] = __deepmerge(old.get(k, {}), v)
+        else:
+            old[k] = v
+    return old
+
+
+def deepmerge(old: dict, new: dict):
+    result = deepcopy(old)
+    return __deepmerge(result, new)
+
+
+def format(text: str, data: dict):
+    keys = FORMAT_REGEX.findall(text)
+    for key in keys:
+        new_val = ', '.join([str(s) for s in 
+            get_by_path(key[1:-1], data, default=key[1:-1])])
+        text = text.replace(key, new_val)
+    return text
