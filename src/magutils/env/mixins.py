@@ -28,6 +28,7 @@ class DBMixin:
     DB_PORT: int | None = field(None)
     DB_NAME: str | None = field(None)
     DB_PATH: Path | None = field(None)
+    DB_SCHEMA: str = field('public')
 
 
 class RedisMixin:
