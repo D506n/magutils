@@ -35,6 +35,7 @@ uv add git+https://github.com/D506n/magutils
   - [time_utils](#utilstime_utils)
   - [bg_tasks](#utilsbg_tasks)
   - [pubsub](#utilspubsub)
+  - [req_limit](#utilsreq_limit)
   - [schedulled_tasks](#utilsschedulled_tasks)
   - [i18n](#utilsi18n)
   - [tree_import](#utilstree_import)
@@ -416,6 +417,34 @@ unsubscribe()
 - `subscribe(callback)` – подписывает асинхронный колбэк, возвращает функцию для отписки.
 - `emit(payload, raise_errors=False)` – эмитирует событие, вызывая все подписанные колбэки.
 - `unsubscribe(key)` – внутренний метод для отписки по ключу.
+
+### utils.req_limit
+
+Класс `Limiter` — синглтон для асинхронного ограничения частоты запросов (rate limiting) на основе `aiolimiter.AsyncLimiter`. Позволяет создавать именованные лимитеры с разными параметрами и использовать их как асинхронные контекстные менеджеры.
+
+Пример:
+
+```python
+from magutils.req_limit import Limiter
+import asyncio
+
+# Создание лимитера: не более 5 запросов в секунду
+Limiter.set("api", limit=5, per=1)
+
+# Использование как контекстного менеджера
+async with Limiter.rate_limit("api"):
+    # выполнение запроса
+    pass
+
+# Если лимитер не был создан явно, get() создаст его с параметрами по умолчанию (10 запросов в секунду)
+limiter = Limiter.get("default_limited")
+```
+
+Методы:
+- `inst()` — возвращает экземпляр синглтона.
+- `set(key, limit=10, per=1)` — создаёт лимитер для ключа с указанным лимитом (`limit` запросов за `per` секунд).
+- `get(key)` — возвращает существующий лимитер для ключа или создаёт новый с параметрами по умолчанию (10 запросов/сек).
+- `rate_limit(key)` — асинхронный контекстный менеджер, который приостанавливает выполнение при превышении лимита.
 
 ### utils.schedulled_tasks
 
