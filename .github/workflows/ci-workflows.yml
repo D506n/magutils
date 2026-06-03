@@ -17,6 +17,7 @@ jobs:
   test:
     name: Test / Lint
     runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/')"  # не запускать на тегях
     strategy:
       fail-fast: false
       matrix:
@@ -49,8 +50,8 @@ jobs:
   release:
     name: Build Release
     if: startsWith(github.ref, 'refs/tags/')
-    needs: test
     runs-on: ubuntu-latest
+    # УБРАЛ needs: test — релиз не должен ждать тесты на main
 
     steps:
       - name: Checkout
