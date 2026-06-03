@@ -22,6 +22,5 @@ new_data = tag_reg.sub(f'version = "{tag}"', data)
 file.write_text(new_data)
 subprocess.run(['git', 'add', '.'], check=True)
 subprocess.run(['git', 'commit', '-m', msg], check=True)
-subprocess.run(['git', 'push'], check=True)
 
 print(f'Version set to {tag}')
