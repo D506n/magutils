@@ -83,7 +83,7 @@ def build_root(
         skip_err: bool = False, 
         **kwargs):
     if not isinstance(root_path, Path):
-        root_path = Path(root_path)
+        root_path = Path(root_path).absolute()
     root = entity_type(**kwargs)
     for subpath in root_path.iterdir():
         if not subpath.is_dir():

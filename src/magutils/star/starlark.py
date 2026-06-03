@@ -4,7 +4,7 @@ import textwrap
 import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from typing import Self
+from typing import Callable, Self
 
 try:
     import starlark as sl
@@ -14,7 +14,7 @@ except ImportError:
 
 REGEX_CACHE: dict[str, re.Pattern] = {}
 
-DEFAULT_WRAPER = """
+DEFAULT_WRAPPER = """
 re = struct(
     findall = star_re_findall,
     search = star_re_search
@@ -69,7 +69,7 @@ class StarResult():
         self.success = False
 
 
-class STCtx():
+class BaseCTX():
     def __init__(self):
         self.mod = sl.Module()
         self.prints: list[str] = []
@@ -108,13 +108,16 @@ class STCtx():
 class Runner:
     __inst: dict[str, Self] = {}
 
-    def __init__(self, size: int = 5, wraper: str = None):
-        self.ctxs: aio.Queue[STCtx] = aio.Queue()
+    def __init__(self, 
+                 size: int = 5, 
+                 wrapper: str = None,
+                 ctx_factory: Callable[[], BaseCTX] = BaseCTX):
+        self.ctxs: aio.Queue[BaseCTX] = aio.Queue()
         for _ in range(size):
-            self.ctxs.put_nowait(STCtx())
-        self.wraper = wraper or DEFAULT_WRAPER
-        self.wrap_template = textwrap.dedent(self.wraper)
-        self.__class__.__inst[wraper] = self
+            self.ctxs.put_nowait(ctx_factory())
+        self.wrapper = wrapper or DEFAULT_WRAPPER
+        self.wrap_template = textwrap.dedent(self.wrapper)
+        self.__class__.__inst[wrapper] = self
 
     @asynccontextmanager
     async def get_ctx(self):
@@ -150,14 +153,14 @@ class Runner:
             return res
 
     @classmethod
-    def inst(cls, wraper: str = None):
-        if not wraper:
-            wraper = DEFAULT_WRAPER
-        if wraper not in cls.__inst.keys():
-            cls(wraper=wraper)
-        return cls.__inst[wraper]
+    def inst(cls, wrapper: str = None):
+        if not wrapper:
+            wrapper = DEFAULT_WRAPPER
+        if wrapper not in cls.__inst.keys():
+            cls(wrapper=wrapper)
+        return cls.__inst[wrapper]
 
     @classmethod
-    async def run(cls, script: str, data, wraper: str = None) -> StarResult:
-        self = cls.inst(wraper=wraper)
+    async def run(cls, script: str, data, wrapper: str = None) -> StarResult:
+        self = cls.inst(wrapper=wrapper)
         return await self._run(script, data)

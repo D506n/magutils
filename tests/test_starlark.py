@@ -4,9 +4,9 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from starlark import StarlarkError
 from magutils.star.starlark import (
     StarResult,
-    STCtx,
+    BaseCTX,
     Runner,
-    DEFAULT_WRAPER,
+    DEFAULT_WRAPPER,
     REGEX_CACHE,
 )
 
@@ -62,14 +62,14 @@ class TestSTCtx:
 
     def test_init(self):
         """Тест инициализации контекста."""
-        ctx = STCtx()
+        ctx = BaseCTX()
         assert ctx.prints == []
         assert ctx.mod["results"] == {}
         assert ctx.mod["input"] == {}
 
     def test_print(self):
         """Тест функции print."""
-        ctx = STCtx()
+        ctx = BaseCTX()
         ctx.print("hello", "world")
         assert ctx.prints == ["hello", "world"]
         ctx.print(42)
@@ -77,7 +77,7 @@ class TestSTCtx:
 
     def test_re_search(self):
         """Тест функции re_search."""
-        ctx = STCtx()
+        ctx = BaseCTX()
         # Первый вызов компилирует паттерн
         result = ctx.re_search(r"\d+", "abc123def", 0)
         assert result == "123"
@@ -92,7 +92,7 @@ class TestSTCtx:
 
     def test_clear(self):
         """Тест очистки контекста."""
-        ctx = STCtx()
+        ctx = BaseCTX()
         ctx.mod["results"] = {"a": 1}
         ctx.mod["input"] = {"b": 2}
         ctx.prints.append("test")
@@ -109,7 +109,7 @@ class TestRunner:
         """Тест инициализации Runner."""
         runner = Runner(size=3)
         assert runner.ctxs.qsize() == 3
-        assert runner.wraper == DEFAULT_WRAPER
+        assert runner.wrapper == DEFAULT_WRAPPER
 
     def test_wrap_script(self):
         """Тест обёртки скрипта."""
@@ -137,7 +137,7 @@ class TestRunner:
         """Тест получения контекста."""
         runner = Runner(size=1)
         async with runner.get_ctx() as ctx:
-            assert isinstance(ctx, STCtx)
+            assert isinstance(ctx, BaseCTX)
         # Контекст возвращается в очередь
         assert runner.ctxs.qsize() == 1
 
@@ -259,6 +259,6 @@ results = main(input)
 """
         script = "return input * 2"
         data = 5
-        result = await Runner.run(script, data, wraper=custom_wrapper)
+        result = await Runner.run(script, data, wrapper=custom_wrapper)
         assert result.success is True
         assert result.result == {"custom": 10}
