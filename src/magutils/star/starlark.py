@@ -15,12 +15,18 @@ except ImportError:
 REGEX_CACHE: dict[str, re.Pattern] = {}
 
 DEFAULT_WRAPPER = """
+def star_elapsed():
+    return time.now() - time.start
+
 re = struct(
     findall = star_re_findall,
     search = star_re_search
 )
 time = struct(
-    now = star_time
+    now = star_time,
+    start = star_time(),
+    elapsed = star_elapsed,
+    sleep = star_sleep
 )
 
 def process(input):
@@ -84,6 +90,7 @@ class BaseCTX():
         self.mod.add_callable('star_re_findall', re.findall)
         self.mod.add_callable('star_re_search', self.re_search)
         self.mod.add_callable('star_time', time.time)
+        self.mod.add_callable('star_sleep', time.sleep)
         self.mod['results'] = {}
         self.mod['input'] = {}
 
