@@ -907,8 +907,10 @@ print(decoded['payload'])  # {'user_id': 42, 'exp': 1672531200}
   - `re.search(pattern, text, group=0)` – поиск первого совпадения regex.
 - `time` – структура с методами времени:
   - `time.now()` – текущее время в секундах с эпохи.
-  ...
-- `json.encode(obj)`, `json.decode(str)` – работа с JSON строками внутри starlark скрипта (предоставляется библиотекой starlark-pyo3).
+  - `time.start` – переменная с временем старта скрипта в секундах.
+  - `time.elapsed()` - время прошедшее с начала выполнения скрипта в секундах.
+  - `time.sleep(...)` - аналог `time.sleep(...)` в python. Не влияет на асинхронный цикл вызвавший starlark.
+- `json.encode(obj)`, `json.decode(str)` – работа с JSON строками внутри starlark скрипта.
 
 #### Wrapper по умолчанию
 
