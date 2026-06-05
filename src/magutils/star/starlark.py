@@ -4,7 +4,7 @@ import textwrap
 import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from typing import Callable, Self
+from typing import Callable, Self, TypeVar
 
 try:
     import starlark as sl
@@ -47,16 +47,18 @@ def main(inp):
 results = main(input)
 """
 
+ResultType = TypeVar('ResultType', bound=dict)
 
-class StarResult():
+
+class StarResult[ResultType]():
     def __init__(self):
-        self._res: dict | None = None
+        self._res: ResultType | None = None
         self.prints: list[str] = []
         self._error: Exception | None = None
         self.success: bool = False
 
     @property
-    def result(self):
+    def result(self) -> ResultType:
         if self.success:
             return self._res
         else:
