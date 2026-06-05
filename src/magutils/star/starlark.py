@@ -14,7 +14,7 @@ except ImportError:
 
 REGEX_CACHE: dict[str, re.Pattern] = {}
 
-DEFAULT_WRAPPER = """
+DEFAULT_SETUP = """
 def star_elapsed():
     return time.now() - time.start
 
@@ -28,6 +28,10 @@ time = struct(
     elapsed = star_elapsed,
     sleep = star_sleep
 )
+"""
+
+DEFAULT_WRAPPER = """
+{setup}
 
 def process(input):
 {script}
@@ -122,9 +126,20 @@ class Runner:
         self.ctxs: aio.Queue[BaseCTX] = aio.Queue()
         for _ in range(size):
             self.ctxs.put_nowait(ctx_factory())
-        self.wrapper = wrapper or DEFAULT_WRAPPER
+        self.wrapper = wrapper or self.build_wrapper()
         self.wrap_template = textwrap.dedent(self.wrapper)
         self.__class__.__inst[wrapper] = self
+
+    @classmethod
+    def build_wrapper(cls, wrapper: str = None, **kwargs):
+        if not wrapper:
+            wrapper = DEFAULT_WRAPPER
+        if 'setup' not in kwargs:
+            kwargs['setup'] = DEFAULT_SETUP
+        parts = [
+            p.format(**kwargs).replace('{', '{{').replace('}', '}}') 
+            for p in wrapper.split('{script}')]
+        return '{script}'.join(parts)
 
     @asynccontextmanager
     async def get_ctx(self):
@@ -161,13 +176,20 @@ class Runner:
 
     @classmethod
     def inst(cls, wrapper: str = None):
-        if not wrapper:
-            wrapper = DEFAULT_WRAPPER
         if wrapper not in cls.__inst.keys():
             cls(wrapper=wrapper)
         return cls.__inst[wrapper]
 
     @classmethod
-    async def run(cls, script: str, data, wrapper: str = None) -> StarResult:
+    async def run(cls, 
+                  script: str, 
+                  data, 
+                  wrapper: str = None, 
+                  **kwargs) -> StarResult:
+        if 'setup' not in kwargs:
+            kwargs['setup'] = DEFAULT_SETUP
+        if not wrapper:
+            wrapper = DEFAULT_WRAPPER
+        wrapper = cls.build_wrapper(wrapper, **kwargs)
         self = cls.inst(wrapper=wrapper)
         return await self._run(script, data)

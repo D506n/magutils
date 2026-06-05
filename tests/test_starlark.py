@@ -8,7 +8,9 @@ from magutils.star.starlark import (
     Runner,
     DEFAULT_WRAPPER,
     REGEX_CACHE,
+    DEFAULT_SETUP
 )
+from random import randint
 
 
 class TestStarResult:
@@ -109,7 +111,7 @@ class TestRunner:
         """Тест инициализации Runner."""
         runner = Runner(size=3)
         assert runner.ctxs.qsize() == 3
-        assert runner.wrapper == DEFAULT_WRAPPER
+        assert runner.wrapper == '{script}'.join([p.format(setup=DEFAULT_SETUP).replace('{', '{{').replace('}', '}}') for p in DEFAULT_WRAPPER.split('{script}')])
 
     def test_wrap_script(self):
         """Тест обёртки скрипта."""
@@ -262,3 +264,30 @@ results = main(input)
         result = await Runner.run(script, data, wrapper=custom_wrapper)
         assert result.success is True
         assert result.result == {"custom": 10}
+
+    @pytest.mark.asyncio
+    async def test_custom_setup(self):
+        val = randint(0, 1000)
+        setup = f"""
+def test():
+    return {val}
+"""
+        script = 'return {"result": test()}'
+        res = await Runner.run(script, {}, setup=setup)
+        assert res.result == {'result': val}
+
+    @pytest.mark.asyncio
+    async def test_custom_wrap_fmt(self):
+        kwargs = {'a': randint(1, 1000), 'b': randint(1, 1000)}
+        wrap = '''
+def process(input):
+{script}
+
+def main(inp):
+    result = process(inp)
+    return {{ 'result': {a}+{b} }}
+
+results = main(input)
+'''
+        res = await Runner.run('return 1001', {}, wrap, **kwargs)
+        assert res.result == {'result': kwargs['a']+kwargs["b"]}
