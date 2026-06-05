@@ -38,7 +38,7 @@ def process(input):
 
 def main(inp):
     result = process(inp)
-    if not result:
+    if result == None:
         return {{}}
     if type(result) not in ['dict', 'list']:
         result = {{'result': result}}
