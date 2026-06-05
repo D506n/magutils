@@ -144,9 +144,15 @@ class Runner:
         return '{script}'.join(parts)
 
     @asynccontextmanager
-    async def get_ctx(self):
+    async def get_ctx(self, add_ctx: dict = None):
         ctx = await self.ctxs.get()
+        if add_ctx:
+            for key, val in add_ctx.items():
+                ctx.mod[key] = val
         yield ctx
+        if add_ctx:
+            for key, val in add_ctx.items():
+                ctx.mod[key] = None
         ctx.clear()
         self.ctxs.put_nowait(ctx)
 
@@ -159,10 +165,13 @@ class Runner:
     def parse(self, script) -> sl.AstModule:
         return sl.parse('main.star', script)
 
-    async def _run(self, script, data):
+    async def _run(self, 
+                   script, 
+                   data, 
+                   add_ctx: dict = None):
         wrapped_script = self.wrap_script(script)
         res = StarResult()
-        async with self.get_ctx() as ctx:
+        async with self.get_ctx(add_ctx) as ctx:
             globs = ctx.globs
             mod = ctx.mod
             mod['input'] = data
@@ -186,7 +195,8 @@ class Runner:
     async def run(cls, 
                   script: str, 
                   data, 
-                  wrapper: str = None, 
+                  wrapper: str = None,
+                  add_ctx: dict = None, 
                   **kwargs) -> StarResult:
         if 'setup' not in kwargs:
             kwargs['setup'] = DEFAULT_SETUP
@@ -194,4 +204,4 @@ class Runner:
             wrapper = DEFAULT_WRAPPER
         wrapper = cls.build_wrapper(wrapper, **kwargs)
         self = cls.inst(wrapper=wrapper)
-        return await self._run(script, data)
+        return await self._run(script, data, add_ctx)
