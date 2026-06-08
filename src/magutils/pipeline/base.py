@@ -5,7 +5,7 @@ from typing import Any, Awaitable, Protocol, Self, TypeVar
 
 from pydantic import BaseModel
 
-from magutils.id import gen_id
+from ..id import gen_id
 
 T = TypeVar('T', bound=BaseModel)
 
