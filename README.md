@@ -44,6 +44,7 @@ uv add git+https://github.com/D506n/magutils
   - [jwt](#utilsjwt)
   - [starlark](#utilsstarlark)
   - [fsm](#utilsfsm)
+  - [pipeline](#utilspipeline)
 
 ### logging
 
@@ -1112,6 +1113,133 @@ async def main():
 
 asyncio.run(main())
 ```
+
+### utils.pipeline
+
+Модуль для построения асинхронных конвейеров обработки (pipeline) с декларативным описанием шагов. Позволяет последовательно выполнять набор шагов обработки с возможностью раннего выхода при получении результата.
+
+#### Основные компоненты
+
+- **`Pipeline[T]`** – базовый класс конвеера. Наследуйтесь от него и помечайте методы-шаги декоратором `@step`.
+- **`@step(order)`** – декоратор для пометки методов как шагов конвеера. `order` определяет порядок выполнения (меньше = раньше).
+- **`PipeCTX`** – контекст выполнения с уникальным ID. Можно передать кастомную фабрику контекста через `ctx_factory`.
+- **`PipeCTXFactory`** – протокол для создания кастомных контекстов.
+
+#### Механика работы
+
+Шаги автоматически собираются при создании класса и сортируются по `order`. При запуске через `Pipeline.run()` формируется цепочка вложенных корутин (onion-модель), где каждый шаг оборачивает следующий.
+
+**Важно**
+Для построения конвеера каждый шаг должен явно вызывать следующий, в теле функции:
+```python
+class Correct(Pipeline):
+    @step(1)
+    async def first(self, call_next):
+        ...
+        if some_state:
+            return False
+        await call_next
+        ...
+
+    @step(2)
+    async def last(self, call_next):
+        return True
+
+class Incorrect(Pipeline):
+    @step(1)
+    async def first(self, call_next):
+        return
+
+    @step(2)
+    async def last(self, call_next):
+        return True
+```
+
+В примере выше конвеер `Correct` реализует опциональный ранний выход в первом шаге, а конвеер `Incorrect` никогда не дойдёт до последнего шага.
+
+#### Пример использования
+
+```python
+import asyncio
+from magutils.pipeline import Pipeline, step
+
+class AuthPipeline(Pipeline):
+    @step(order=1)
+    async def validate(self, call_next):
+        print("Step 1: validate")
+        return await call_next
+
+    @step(order=2)
+    async def check_permissions(self, call_next):
+        print("Step 2: check permissions")
+        return await call_next
+
+    @step(order=3)
+    async def process(self, call_next):
+        print("Step 3: process")
+        return {"status": "ok"}
+
+async def main():
+    result = await AuthPipeline.run()
+    print(result.result)  # {"status": "ok"}
+
+asyncio.run(main())
+```
+
+#### Пример с ранним выходом
+
+```python
+class CachePipeline(Pipeline):
+    @step(order=1)
+    async def check_cache(self, call_next):
+        # Если данные есть в кэше — возвращаем и выходим
+        ...
+        if cache:
+            return {"from": "cache", "data": "cached_value"}
+        await call_next
+
+    @step(order=2)
+    async def fetch_from_db(self, call_next):
+        # Этот шаг не выполнится, если сработал ранний выход
+        return await call_next
+
+async def main():
+    result = await CachePipeline.run()
+    print(result.result)  # {"from": "cache", "data": "cached_value"}
+
+asyncio.run(main())
+```
+
+#### Кастомный контекст
+
+```python
+from magutils.pipeline import Pipeline, step, PipeCTX
+
+class CustomCTX(PipeCTX):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.user_id = kwargs.get("user_id")
+
+class UserPipeline(Pipeline):
+    @step(order=1)
+    async def greet(self, call_next):
+        print(f"Hello user {self.ctx.user_id}")
+        return await call_next
+
+async def main():
+    result = await UserPipeline.run(ctx_factory=CustomCTX, user_id=42)
+    # Выведет: Hello user 42
+
+asyncio.run(main())
+```
+
+#### Особенности
+
+- **Авто-регистрация шагов**: достаточно пометить метод декоратором `@step(n)` — он автоматически попадёт в конвеер.
+- **Onion-модель**: каждый шаг получает `call_next` — корутину следующего шага, что позволяет выполнять действия до и после.
+- **Ранний выход**: первый шаг, вернувший результат, завершает весь конвеер.
+- **Контекст выполнения**: каждый запуск конвеера получает уникальный ID через `PipeCTX`.
+- **Типизация**: `Pipeline[T]` поддерживает дженерики для типизации результата.
 
 ## Лицензия
 
