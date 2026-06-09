@@ -1,7 +1,18 @@
+import inspect
 import warnings
 from functools import wraps
 from logging import getLogger
-from typing import Any, Awaitable, Protocol, Self, TypeVar
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Generator,
+    Protocol,
+    Self,
+    TypeVar,
+    Union,
+)
 
 from pydantic import BaseModel
 
@@ -21,6 +32,9 @@ warnings.filterwarnings('ignore',
                         RuntimeWarning)
 
 
+class StopPipeline(Exception): ...
+
+
 class PipelineMeta(type):
     def __new__(mcs, name: str, bases: tuple, attrs: dict) -> 'type':
         steps: StepsType = []
@@ -33,38 +47,119 @@ class PipelineMeta(type):
         return cls
 
 
-class PipelineStep(Protocol):
-    def __call__(self, call_next: Awaitable) -> Awaitable: ...
+PipelineStep = Union[
+    Callable[..., Awaitable[Any]],
+    Callable[..., AsyncGenerator[Any, None]],
+    Callable[..., Generator[Any, None, Any]],
+    Callable[..., Any],
+]
 
 
-def step(order: int) -> PipelineStep:
-    """Декоратор для пометки шагов в пайплайне."""
-    def decorator(func: PipelineStep) -> PipelineStep:
+def step(order: int) -> PipelineStep:  # noqa: C901
+    """Декоратор для пометки шагов в конвеере."""
+    def decorator(func: PipelineStep) -> PipelineStep:  # noqa: C901
         warnings.filterwarnings(
             'ignore', 
             f"coroutine '.+{func.__name__}' was never awaited", 
             RuntimeWarning)  # В пайплайне это предупреждение не нужно
 
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            self: Pipeline = args[0]
-            self.step_num = order
-            self.step_name = func.__name__
+        def select_wrap(func):
+            if inspect.iscoroutinefunction(func):
+                wrap = async_wrapper
+            elif inspect.isasyncgenfunction(func):
+                wrap = async_gen_wrapper
+            elif inspect.isgeneratorfunction(func):
+                wrap = sync_gen_wrap
+            elif inspect.isfunction(func):
+                wrap = sync_wrap
+            else:
+                raise TypeError('Unknown function type!')
+            return wrap
 
+        def refresh_pipeline(*args):
+            p: 'Pipeline' = args[0]
+            p.step_num = order
+            p.step_name = func.__name__
             logger.info(
-                '%s runs %s step: %s', self.name, self.step_num, self.step_name)
+                '%s runs %s step: %s', p.name, p.step_num, p.step_name)
+            return p
 
+        async def async_call(func, *args, **kwargs):
+            self: 'Pipeline' = refresh_pipeline(*args)
+            if inspect.isasyncgen(func):
+                return await func.__anext__()
             try:
                 result = await func(*args, **kwargs)
             except Exception as e:
                 logger.error('%s failed on %s step: %s', self.name, 
                              func.__name__, self.step_num)
                 raise e
+            if inspect.isasyncgen(result):
+                return result
+            if result is not None:
+                self.result = result
+                raise StopPipeline
+
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            call_next = kwargs.pop('_call_next')
+            await async_call(func, *args, **kwargs)
+            await call_next
+
+        @wraps(func)
+        async def async_gen_wrapper(*args, **kwargs):
+            call_next = kwargs.pop('_call_next')
+            gen = func(*args, **kwargs)
+            await async_call(gen, *args, **kwargs)
+            try:
+                await call_next
+            except StopPipeline:
+                pass
+            try:
+                await gen.__anext__()
+            except StopAsyncIteration:
+                pass
+
+        def sync_call(func, *args, **kwargs):
+            self: 'Pipeline' = refresh_pipeline(*args)
+            if inspect.isgenerator(func):
+                return next(func)
+            try:
+                result = func(*args, **kwargs)
+            except Exception as e:
+                logger.error('%s failed on %s step: %s', self.name, 
+                             func.__name__, self.step_num)
+                raise e
+            if inspect.isgenerator(result):
+                return result
             if result is not None and self.result is None:
                 self.result = result
-                return
-        wrapper._step_order = order
-        return wrapper
+                raise StopPipeline
+
+        @wraps(func)
+        async def sync_wrap(*args, **kwargs):
+            call_next = kwargs.pop('_call_next')
+            sync_call(func, *args, **kwargs)
+            await call_next
+
+        @wraps(func)
+        async def sync_gen_wrap(*args, **kwargs):
+            call_next = kwargs.pop('_call_next')
+            gen = sync_call(func, *args, **kwargs)
+            next(gen)
+            try:
+                await call_next
+            except StopPipeline:
+                pass
+            try:
+                next(gen)
+            except StopIteration:
+                pass
+
+        wrap: PipelineStep = select_wrap(func)
+
+        wrap._step_order = order
+        return wrap
     return decorator
 
 
@@ -107,10 +202,13 @@ class Pipeline[T](metaclass=PipelineMeta):
         prew = self.last_step()
         coro = None
         for method_name, _ in reversed(self.get_steps()):
-            coro = getattr(self, method_name)(prew)
+            coro = getattr(self, method_name)(_call_next=prew)
             prew = coro
             coros.append(coro)
         if not coro:
             raise RuntimeError('No steps assigned')
-        await coro
+        try:
+            await coro
+        except StopPipeline:
+            pass
         return self

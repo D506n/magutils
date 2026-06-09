@@ -1116,48 +1116,31 @@ asyncio.run(main())
 
 ### utils.pipeline
 
-Модуль для построения асинхронных конвейеров обработки (pipeline) с декларативным описанием шагов. Позволяет последовательно выполнять набор шагов обработки с возможностью раннего выхода при получении результата.
+Модуль для построения конвейеров обработки (pipeline) с декларативным описанием шагов. Поддерживает как асинхронные, так и синхронные шаги, а также onion-модель (middleware) через `yield`.
 
 #### Основные компоненты
 
-- **`Pipeline[T]`** – базовый класс конвеера. Наследуйтесь от него и помечайте методы-шаги декоратором `@step`.
-- **`@step(order)`** – декоратор для пометки методов как шагов конвеера. `order` определяет порядок выполнения (меньше = раньше).
+- **`Pipeline[T]`** – базовый класс конвейера. Наследуйтесь от него и помечайте методы-шаги декоратором `@step`.
+- **`@step(order)`** – декоратор для пометки методов как шагов конвейера. `order` определяет порядок выполнения (меньше = раньше).
 - **`PipeCTX`** – контекст выполнения с уникальным ID. Можно передать кастомную фабрику контекста через `ctx_factory`.
 - **`PipeCTXFactory`** – протокол для создания кастомных контекстов.
 
-#### Механика работы
+#### Типы шагов
 
-Шаги автоматически собираются при создании класса и сортируются по `order`. При запуске через `Pipeline.run()` формируется цепочка вложенных корутин (onion-модель), где каждый шаг оборачивает следующий.
+Декоратор `@step` автоматически определяет тип функции и выбирает соответствующую обёртку:
 
-**Важно**
-Для построения конвеера каждый шаг должен явно вызывать следующий, в теле функции:
-```python
-class Correct(Pipeline):
-    @step(1)
-    async def first(self, call_next):
-        ...
-        if some_state:
-            return False
-        await call_next
-        ...
+| Тип функции | Поведение |
+|---|---|
+| `async def` (без `yield`) | Асинхронный шаг. `return value` (не `None`) — ранний выход. `return None` / отсутствие `return` — переход к следующему шагу. |
+| `def` (без `yield`) | Синхронный шаг. Аналогично: `return value` — ранний выход, иначе — переход дальше. |
+| `async def` с `yield` | Асинхронный генератор. Код до `yield` выполняется на прямом пути, после `yield` — на обратном (onion-модель). |
+| `def` с `yield` | Синхронный генератор. Аналогично: код до/после `yield` образует onion-слои. |
 
-    @step(2)
-    async def last(self, call_next):
-        return True
+**Ранний выход:** если шаг возвращает не `None` (через `return value`) — результат сохраняется, и цепочка прерывается. Дальнейшие шаги не выполняются.
 
-class Incorrect(Pipeline):
-    @step(1)
-    async def first(self, call_next):
-        return
+**Onion-модель через `yield`:** если шаг является генератором (содержит `yield`), код до `yield` выполняется при движении вглубь цепочки, а код после `yield` — при возврате обратно. Это позволяет реализовать логирование, замеры времени, транзакции и т.п.
 
-    @step(2)
-    async def last(self, call_next):
-        return True
-```
-
-В примере выше конвеер `Correct` реализует опциональный ранний выход в первом шаге, а конвеер `Incorrect` никогда не дойдёт до последнего шага.
-
-#### Пример использования
+#### Пример: асинхронные шаги
 
 ```python
 import asyncio
@@ -1165,19 +1148,18 @@ from magutils.pipeline import Pipeline, step
 
 class AuthPipeline(Pipeline):
     @step(order=1)
-    async def validate(self, call_next):
+    async def validate(self):
         print("Step 1: validate")
-        return await call_next
+        # return None — переход к следующему шагу
 
     @step(order=2)
-    async def check_permissions(self, call_next):
+    async def check_permissions(self):
         print("Step 2: check permissions")
-        return await call_next
 
     @step(order=3)
-    async def process(self, call_next):
+    async def process(self):
         print("Step 3: process")
-        return {"status": "ok"}
+        return {"status": "ok"}  # результат конвейера
 
 async def main():
     result = await AuthPipeline.run()
@@ -1186,26 +1168,78 @@ async def main():
 asyncio.run(main())
 ```
 
-#### Пример с ранним выходом
+#### Пример: ранний выход
 
 ```python
 class CachePipeline(Pipeline):
     @step(order=1)
-    async def check_cache(self, call_next):
-        # Если данные есть в кэше — возвращаем и выходим
-        ...
-        if cache:
+    async def check_cache(self):
+        # Если данные есть в кэше — ранний выход
+        if cache_hit:
             return {"from": "cache", "data": "cached_value"}
-        await call_next
+        # return None — переход к следующему шагу
 
     @step(order=2)
-    async def fetch_from_db(self, call_next):
-        # Этот шаг не выполнится, если сработал ранний выход
-        return await call_next
+    async def fetch_from_db(self):
+        return {"from": "db", "data": "fresh_value"}
 
 async def main():
     result = await CachePipeline.run()
-    print(result.result)  # {"from": "cache", "data": "cached_value"}
+    print(result.result)  # {"from": "cache", ...} или {"from": "db", ...}
+
+asyncio.run(main())
+```
+
+#### Пример: onion-модель через yield
+
+```python
+class LoggingPipeline(Pipeline):
+    @step(order=1)
+    async def logger(self):
+        print(f"[{self.step_name}] enter")
+        yield  # точка переключения — следующий шаг
+        print(f"[{self.step_name}] exit")
+
+    @step(order=2)
+    async def timer(self):
+        import time
+        start = time.time()
+        yield  # следующий шаг
+        elapsed = time.time() - start
+        print(f"[{self.step_name}] took {elapsed:.3f}s")
+
+    @step(order=3)
+    async def handler(self):
+        return {"result": "ok"}
+
+async def main():
+    result = await LoggingPipeline.run()
+    print(result.result)  # {"result": "ok"}
+
+asyncio.run(main())
+# Вывод:
+# [logger] enter
+# [timer] enter
+# [timer] took 0.000s
+# [logger] exit
+```
+
+#### Пример: синхронные шаги
+
+```python
+class SyncPipeline(Pipeline):
+    @step(order=1)
+    def step_one(self):
+        print("Sync step 1")
+
+    @step(order=2)
+    def step_two(self):
+        print("Sync step 2")
+        return {"done": True}
+
+async def main():
+    result = await SyncPipeline.run()
+    print(result.result)  # {"done": True}
 
 asyncio.run(main())
 ```
@@ -1222,9 +1256,8 @@ class CustomCTX(PipeCTX):
 
 class UserPipeline(Pipeline):
     @step(order=1)
-    async def greet(self, call_next):
+    async def greet(self):
         print(f"Hello user {self.ctx.user_id}")
-        return await call_next
 
 async def main():
     result = await UserPipeline.run(ctx_factory=CustomCTX, user_id=42)
@@ -1235,10 +1268,11 @@ asyncio.run(main())
 
 #### Особенности
 
-- **Авто-регистрация шагов**: достаточно пометить метод декоратором `@step(n)` — он автоматически попадёт в конвеер.
-- **Onion-модель**: каждый шаг получает `call_next` — корутину следующего шага, что позволяет выполнять действия до и после.
-- **Ранний выход**: первый шаг, вернувший результат, завершает весь конвеер.
-- **Контекст выполнения**: каждый запуск конвеера получает уникальный ID через `PipeCTX`.
+- **Авто-регистрация шагов**: достаточно пометить метод декоратором `@step(n)` — он автоматически попадёт в конвейер.
+- **4 типа шагов**: асинхронные, синхронные, асинхронные генераторы, синхронные генераторы — декоратор определяет тип автоматически.
+- **Onion-модель**: `yield` в шаге-генераторе создаёт точку переключения контекста — код до `yield` выполняется на прямом пути, после `yield` — на обратном.
+- **Ранний выход**: `return value` (не `None`) в любом шаге завершает конвейер, результат сохраняется в `self.result`.
+- **Контекст выполнения**: каждый запуск конвейера получает уникальный ID через `PipeCTX`.
 - **Типизация**: `Pipeline[T]` поддерживает дженерики для типизации результата.
 
 ## Лицензия
