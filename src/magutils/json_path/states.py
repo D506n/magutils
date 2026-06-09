@@ -35,7 +35,17 @@ class State():
                 ctx.data.append([])
 
     def next_step(self, ctx: Ctx):
-        ctx.data = ctx.data[ctx.key]
+        if (
+                (ctx.key in ctx.data) 
+                or (not ctx.is_key(ctx.key) 
+                    and ctx.key <= len(ctx.data))
+            ):
+            ctx.data = ctx.data[ctx.key]
+        elif ctx.last_pos:
+            return
+        else:
+            self.add_layer(ctx)
+            ctx.data = ctx.data[ctx.key]
 
 
 class KeyAccess(State):
@@ -111,7 +121,10 @@ class IndexAccess(KeyAccess):
         )
 
     def run_check(self, ctx: Ctx):
-        return ctx.key < len(ctx.data)
+        return (
+            ctx.key < len(ctx.data)
+            or ctx.key == -1
+        )
 
 
 class ListAppend(State):
@@ -149,6 +162,7 @@ class IndexSet(IndexAccess):
     def run_check(self, ctx):
         return (
             not ctx.is_key(ctx.key) and (ctx.key >= len(ctx.data)
+            or (ctx.key == -1 and ctx.last_pos)
             # or (ctx.intent == Set and ctx.key not in ctx.data)
             or (ctx.intent == Set and ctx.last_pos))
         )
