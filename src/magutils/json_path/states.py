@@ -38,7 +38,8 @@ class State():
         if (
                 (ctx.key in ctx.data) 
                 or (not ctx.is_key(ctx.key) 
-                    and ctx.key <= len(ctx.data))
+                    and ctx.key <= len(ctx.data)
+                    and len(ctx.data) > 0)
             ):
             ctx.data = ctx.data[ctx.key]
         elif ctx.last_pos:
