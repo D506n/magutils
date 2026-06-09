@@ -55,26 +55,30 @@ def seconds_stringify(seconds: int) -> str: ...  # noqa: F811 перегрузк
 
 @lru_cache()
 def seconds_stringify(seconds: int) -> str:
-    """Преобразует количество секунд в часы/минуты.
+    """Преобразует количество секунд в человекочитаемый вид.
 
     Args:
         seconds: Количество секунд для преобразования.
-
-    Returns:
-        Строка в формате x h./x m./x h. y m..
     """
     if seconds < 0:
         raise ValueError("Seconds must be non-negative")
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    result = ""
-    if hours > 0:
-        result += f"{hours} h. "
-    if minutes > 0:
-        result += f"{minutes} m."
-    if not result:
-        result = "0 m."
-    return result.strip()
+    elif seconds == 0:
+        return '0 s'
+    units = [
+        ('w ', 604_800),
+        ('d', 86_400),
+        ('h', 3600),
+        ('m', 60),
+        ('s', 1)
+    ]
+    parts = []
+    remaining = seconds
+    for unit, divisor in units:
+        if remaining >= divisor:
+            value = remaining // divisor
+            remaining %= divisor
+            parts.append(f"{value} {unit}")
+    return " ".join(parts)
 
 
 @overload
