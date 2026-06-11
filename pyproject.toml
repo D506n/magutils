@@ -1,6 +1,6 @@
 [project]
 name = "magutils"
-version = "0.6.3"
+version = "0.7.0"
 description = "Набор удобных инструментов для Python приложений."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -16,6 +16,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "tzdata>=2026.2",
     "aiolimiter>=1.2.1",
+    "starlark-pyo3>=2026.1",
 ]
 
 [dependency-groups]
@@ -72,7 +73,7 @@ exclude_lines = [
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["asyncpg", "babel", "tzdata"]
-DEP004 = ["git", "kubernetes", "pathspec", "fastapi", "telegrinder", "starlark"]
+DEP004 = ["git", "kubernetes", "pathspec", "fastapi", "telegrinder"]
 
 [build-system]
 requires = ["uv_build>=0.7.11,<0.8.0"]
