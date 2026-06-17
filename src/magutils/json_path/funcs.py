@@ -92,6 +92,8 @@ def __deepmerge(old: dict, new: dict):
 def deepmerge(old: dict, new: dict, copy_old: bool = True):
     if copy_old:
         result = deepcopy(old)
+    else:
+        result = old
     return __deepmerge(result, new)
 
 
