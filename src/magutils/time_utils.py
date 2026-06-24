@@ -124,6 +124,8 @@ def from_timestamp(timestamp: int | float) -> datetime: ...  # noqa: F811 пер
 
 @lru_cache()
 def from_timestamp(timestamp: int | float) -> datetime:
+    if timestamp >= 1_000_000_000_000:
+        timestamp /= 1000
     return datetime.fromtimestamp(timestamp, get_tz())
 
 
