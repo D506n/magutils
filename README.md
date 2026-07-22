@@ -45,6 +45,7 @@ uv add git+https://github.com/D506n/magutils
   - [starlark](#utilsstarlark)
   - [fsm](#utilsfsm)
   - [pipeline](#utilspipeline)
+  - [http](#utilshttp)
 
 ### logging
 
@@ -1317,6 +1318,139 @@ asyncio.run(main())
 - **Ранний выход**: `return value` (не `None`) в любом шаге завершает конвейер, результат сохраняется в `self.result`.
 - **Контекст выполнения**: каждый запуск конвейера получает уникальный ID через `PipeCTX`.
 - **Типизация**: `Pipeline[T]` поддерживает дженерики для типизации результата.
+
+### utils.http
+
+Модуль для построения и выполнения HTTP-запросов с поддержкой rate limiting, Starlark-скриптов (хуков) и fluent-интерфейса.
+
+#### LimitAwareClient
+
+`LimitAwareClient` — наследник `httpx.AsyncClient` с интеграцией rate limiter'а. Поддерживает как глобальный лимитер из [`req_limit`](#utilsreq_limit), так и кастомный `AsyncLimiter`.
+
+```python
+from aiolimiter import AsyncLimiter
+from magutils.http.client import LimitAwareClient
+
+# С кастомным лимитером
+client = LimitAwareClient(
+    base_url="https://api.example.com",
+    limiter=AsyncLimiter(10, 1),  # 10 запросов в секунду
+)
+
+# Без лимитера — используется глобальный Limiter.get(base_url)
+client = LimitAwareClient(base_url="https://api.example.com")
+```
+
+#### FluentRequest
+
+`FluentRequest` — builder для HTTP-запроса с fluent-интерфейсом (цепочкой вызовов). Позволяет декларативно описать метод, URL, параметры, заголовки, тело запроса и количество ретраев.
+
+```python
+from magutils.http.request import FluentRequest
+
+req = FluentRequest("https://api.example.com")
+req.method("POST") \
+   .url("/v1/users") \
+   .params({"page": 1}) \
+   .headers({"X-Request-ID": "abc"}) \
+   .cookies({"session": "tok"}) \
+   .body({"name": "John"}) \
+   .retries(5)
+```
+
+**Методы builder'а** (все возвращают `self`):
+
+- `method(method: METHODS)` — HTTP-метод (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`).
+- `base_url(url: str)` — базовый URL.
+- `url(url: str)` — путь запроса.
+- `params(params: dict)` — добавляет query-параметры.
+- `headers(headers: dict)` — добавляет заголовки.
+- `cookies(cookies: dict)` — добавляет куки.
+- `body(data: dict)` — добавляет поля в тело запроса (сериализуется в JSON при выполнении).
+- `retries(retries: int)` — количество ретраев (по умолчанию 3).
+- `script(script: str, typ: Literal["before", "after"])` — добавляет Starlark-скрипт (хук), выполняемый до или после запроса.
+- `reload_scripts()` — сбрасывает флаг выполнения before-скриптов, позволяя выполнить их снова.
+- `copy()` — создаёт независимую копию запроса.
+
+**Read-only прокси** `req.get` — предоставляет доступ к текущим параметрам запроса без возможности их изменения. Поле `sec_headers` маскирует значение заголовка `Authorization`.
+
+**Выполнение запроса:**
+
+```python
+import asyncio
+from httpx import AsyncClient
+from magutils.http.request import FluentRequest
+
+async def main():
+    req = FluentRequest("https://httpbin.org")
+    req.method("GET").url("/get")
+
+    # Вариант 1: execute() сам создаёт временный AsyncClient
+    resp = await req.execute()
+    print(resp.json())
+
+    # Вариант 2: переиспользование существующего клиента
+    async with AsyncClient() as client:
+        resp = await req.execute(client)
+        print(resp.json())
+
+asyncio.run(main())
+```
+
+#### Starlark-хуки (before/after scripts)
+
+Перед выполнением запроса можно задать Starlark-скрипты, которые модифицируют `params`, `headers` и `body`. После выполнения — скрипты, обрабатывающие ответ.
+
+```python
+req = FluentRequest("https://api.example.com")
+req.method("GET").url("/data")
+req.script("params['token'] = 'secret'", typ="before")
+req.script("body['result'] = body.pop('data', None)", typ="after")
+```
+
+**Before-скрипты** выполняются только один раз. Повторный вызов `execute()` не запускает их заново, если не вызван `reload_scripts()`. Таким образом можно переиспользовать один объект запроса много раз, не выполняя заново `before` скрипты.
+
+**After-скрипты** выполняются только при успешном ответе (`response.is_success == True`). Получают на вход `params`, `headers` ответа и декодированное тело.
+
+#### Storage и HookCtx
+
+`Storage` — простое key-value хранилище для обмена данными между скриптами. `HookCtx` — контекст выполнения Starlark-скрипта, регистрирующий функции `st_save(key, value)` и `st_load(key, default=None)`.
+
+```python
+from magutils.http.helpers import Storage, QHookRunner
+
+storage = Storage()
+runner = QHookRunner(storage=storage)
+
+# Скрипт сохраняет значение
+await QHookRunner.run(
+    "st_save('token', 'abc')", {}, {}, {},
+    wrapper=runner.wrap_template,
+)
+
+# Другой скрипт загружает сохранённое значение
+_, _, body = await QHookRunner.run(
+    "body['t'] = st_load('token')", {}, {}, {},
+    wrapper=runner.wrap_template,
+)
+# body == {'t': 'abc'}
+```
+
+#### Пример полного цикла
+
+```python
+import asyncio
+from magutils.http.request import FluentRequest
+
+async def main():
+    req = FluentRequest("https://jsonplaceholder.typicode.com")
+    resp = await req.method("GET").url("/posts/1").execute()
+
+    data = resp.json()
+    print(data["title"])  # Выведет заголовок поста
+
+asyncio.run(main())
+```
 
 ## Лицензия
 
