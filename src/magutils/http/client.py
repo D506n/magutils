@@ -1,7 +1,7 @@
 from aiolimiter import AsyncLimiter
 from httpx import AsyncClient, Limits, Timeout
 
-from magutils.req_limit import Limiter
+from ..req_limit import Limiter
 
 DEFAULT_TIMEOUT_CONFIG = Timeout(timeout=5.0)
 DEFAULT_LIMITS = Limits(max_connections=100, max_keepalive_connections=20)

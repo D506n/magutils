@@ -1,6 +1,6 @@
 [project]
 name = "magutils"
-version = "0.7.4"
+version = "0.7.5"
 description = "Набор удобных инструментов для Python приложений."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -17,6 +17,7 @@ dependencies = [
     "tzdata>=2026.2",
     "aiolimiter>=1.2.1",
     "starlark-pyo3>=2026.1",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]

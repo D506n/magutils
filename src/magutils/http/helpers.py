@@ -1,7 +1,7 @@
 from functools import partial
 from logging import getLogger
 
-from magutils.star.starlark import BaseCTX, Runner
+from ..star.starlark import BaseCTX, Runner
 
 HOOK_WRAPPER = '''
 {setup}
