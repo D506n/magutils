@@ -443,6 +443,36 @@ class TestFluentRequest:
         assert len(results) == 2
         assert all(r is mock_response for r in results)
 
+    @pytest.mark.parametrize(
+            "req_params, checks",
+            [
+                ({}, {'base_url': "http://localhost", "method": "GET", "curl": (
+            "curl --request GET --url 'http://localhost'"
+            " --header 'Content-Type: application/json'"
+            " --header 'Accept: application/json'"
+        )}),
+                ({"method": "POST", "headers": {"Authorization": "123123"}, "url": "/docs"}, {"method": "POST", "curl": (
+            "curl --request POST --url 'http://localhost/docs'"
+            " --header 'Content-Type: application/json'"
+            " --header 'Accept: application/json'"
+            " --header 'Authorization: ***'"
+        )}),
+            ({"params": {"hello": "pytest"}, "body": {"test": "data"}}, {"curl": (
+                "curl --request GET --url 'http://localhost?hello=pytest' "
+                "--header 'Content-Type: application/json' "
+                "--header 'Accept: application/json' "
+                '--data \'{"test":"data"}\''
+                )
+            })
+            ]
+    )
+    def test_request_dump(self, req_params: dict, checks: dict):
+        test_req = FluentReq(req_params.get('base_url', "http://localhost"))
+        for k, v in req_params.items():
+            getattr(test_req, k)(v) # применяю параметры через fluent api
+        dump = test_req.get.dump(True)
+        for k, v in checks.items():
+            assert v == dump[k]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Helpers: Storage

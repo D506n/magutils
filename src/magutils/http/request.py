@@ -1,6 +1,6 @@
 from asyncio import Lock
 from logging import getLogger
-from typing import Literal, Self
+from typing import Literal, Self, TypedDict
 
 import orjson
 from httpx import AsyncClient, Response
@@ -11,6 +11,17 @@ logger = getLogger(__name__)
 
 METHODS_SET = set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
 METHODS = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+
+
+class DumpResult(TypedDict):
+    method: METHODS
+    base_url: str
+    url: str
+    params: dict[str, str]
+    headers: dict[str, str]
+    cookies: dict[str, str]
+    body: dict
+    curl: str | None
 
 
 class ROProxy:
@@ -38,6 +49,38 @@ class ROProxy:
 
     def __getattr__(self, name):
         return getattr(self.__obj, f'_{name}', None)
+
+    def dump(self, with_curl=False) -> DumpResult:
+        result = {
+            "method": self.method,
+            "base_url": self.base_url,
+            "url": self.url,
+            "params": self.params,
+            "headers": self.sec_headers,
+            "cookies": self.cookies,
+            "body": self.body,
+            "curl": None
+        }
+        if with_curl:
+            result['curl'] = self.curl
+        return result
+
+    @property
+    def curl(self):
+        url = f'{self.base_url}{self.url}'
+        if self.params:
+            url += '?'
+            url += "&".join([f"{k}={v}" for k, v in self.params.items()])
+        curl_headers = ''
+        if self.headers:
+            curl_headers = ' --header '
+            curl_headers += ' --header '.join(
+                f"'{k}: {v}'" for k, v in self.sec_headers.items())
+        curl_data = ''
+        if self.body:
+            curl_data += f" --data '{orjson.dumps(self.body).decode()}'"
+        return (f"curl --request {self.method}"
+                    f" --url '{url}'{curl_headers}{curl_data}")
 
 
 class FluentReq:
