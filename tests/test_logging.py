@@ -53,7 +53,7 @@ def error_func(arg, arg2):
 T = TypeVar('T', bound=BaseAsyncHandler)
 
 @contextmanager
-def init_handler(hndlr: type[T], **kw) -> Generator[T]:
+def init_handler(hndlr: type[T], **kw):
     handler = hndlr(**kw)
     yield handler
     if not hasattr(handler, 'closing_event'):

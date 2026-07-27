@@ -1,4 +1,5 @@
 import asyncio as aio
+import sys
 from datetime import datetime
 from functools import lru_cache
 from logging import getLogger
@@ -263,4 +264,5 @@ class Scheduler():
     def shutdown(self):
         self.alive = False
         self.sched_que.put_nowait(self.shutdown_marker)
-        self.sched_que.shutdown()
+        if sys.version_info.major == 3 and sys.version_info.minor > 12:
+            self.sched_que.shutdown()
