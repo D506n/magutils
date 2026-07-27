@@ -5,7 +5,6 @@ description = "Набор удобных инструментов для Python 
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "aiofiles>=25.1.0",
     "colorama>=0.4.6",
     "dotenv>=0.9.9",
     "orjson>=3.11.4",
