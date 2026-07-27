@@ -124,6 +124,8 @@ class TestTimeUtils:
 
         dt = datetime(2026, 2, 7, 15, 34, 3, tzinfo=get_tz())
         assert from_timestamp(1770478443) == dt
+        dt = parse_time('2026-07-26T00:41:09.285942+00:00')
+        assert from_timestamp(1785026469285.9424) == dt
 
         dt = get_current_time()
         dt = dt.replace(microsecond=0)

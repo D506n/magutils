@@ -94,8 +94,6 @@ def step(order: int) -> PipelineStep:  # noqa: C901
                 logger.error('%s failed on %s step: %s', self.name, 
                              func.__name__, self.step_num)
                 raise e
-            if inspect.isasyncgen(result):
-                return result
             if result is not None:
                 self.result = result
                 raise StopPipeline
@@ -122,8 +120,6 @@ def step(order: int) -> PipelineStep:  # noqa: C901
 
         def sync_call(func, *args, **kwargs):
             self: 'Pipeline' = refresh_pipeline(*args)
-            if inspect.isgenerator(func):
-                return next(func)
             try:
                 result = func(*args, **kwargs)
             except Exception as e:

@@ -60,10 +60,10 @@ def rebuild(*paths: str, data: dict | list, silent=True):
         temp = fwalker.walk(data, silent=silent)
         if len(result) < len(temp.result):
             twalker = Walker.make(tpath, Set)
-            if len(twalker.path) > 1:
+            start_from_append = twalker.path[0] == '!a'
+            if len(twalker.path) > 1 and not start_from_append:
                 result = [twalker.template() for _ in range(len(temp.result))]
-            elif isinstance(twalker.path[0], int)\
-                    or twalker.path[0] in {'!a', '*'}:
+            elif start_from_append:
                 result = []
             else:
                 result = {}
@@ -104,35 +104,3 @@ def format(text: str, data: dict):
             get_by_path(key[1:-1], data, default=key[1:-1])])
         text = text.replace(key, new_val)
     return text
-
-
-def __list_to_paths(path: list[str], data: list):
-    path.append('*')
-    if len(data) == 0:
-        return
-    data = data[0]
-    if isinstance(data, dict):
-        __dict_to_paths(path, data)
-
-
-def __dict_to_paths(path: list[str], data: dict):
-    for k, v in data.items():
-        if isinstance(v, dict):
-            path.append(k)
-            __dict_to_paths(path, v)
-        elif isinstance(v, list):
-            __list_to_paths(path, v)
-
-
-def dict_to_paths(data: dict) -> list[str]:
-    result: list[str] = []
-    for k, v in data.items():
-        path: dict[int, list] = {}
-        if isinstance(v, dict):
-            path.append(k)
-            __dict_to_paths(path, v)
-        elif isinstance(v, list):
-            __list_to_paths(path, v)
-        else:
-            path.append(k)
-        result.append('.'.join(path))

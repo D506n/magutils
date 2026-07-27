@@ -1,6 +1,6 @@
 import pytest
 
-from src.magutils.json_path import get_by_path, set_by_path, del_by_path, rebuild, deepmerge
+from src.magutils.json_path import get_by_path, set_by_path, del_by_path, rebuild, deepmerge, format
 from src.magutils.json_path.walker import StopWalk
 
 
@@ -111,3 +111,95 @@ class TestJsonPath:
         new = {"a": 1}
         merged = deepmerge(old, new)
         assert merged == {"a": 1}
+
+    def test_incorrect_path(self):
+        path = 'test..test'
+        data = {}
+        with pytest.raises(ValueError, match='Invalid path: test..test'):
+            get_by_path(path, data)
+
+    def test_big_index(self):
+        path = 'test.100'
+        data = {'test': [1]}
+        assert get_by_path(path, data)[0] == 1
+
+    def test_get_all_from_list(self):
+        # так делать неэффективно, но можно
+        path = 'test.*'
+        data = {'test': [1, 2, 3]}
+        assert len(get_by_path(path, data)) == 3
+
+    def test_empty_data_in_final(self):
+        path = 'test.*.test'
+        data = {'test': []}
+        assert get_by_path(path, data) == []
+
+    def test_rebuild_from_single_list(self):
+        data = [{'test': 1}]
+        path = '0.test -> 0.test.test'
+        assert rebuild(path, data=data) == [[{'test': {'test': 1}}]]
+
+    def test_delete_by_wildcard(self):
+        data = {'test': [1, 2, 3]}
+        path = 'test.*'
+        del_by_path(path, data)
+        assert data["test"] == []
+
+        data = {'test': [{"test": 1}, {'test': 2}, {'test': 3}]}
+        path = 'test.*.test'
+        del_by_path(path, data)
+        assert data["test"] == [{}, {}, {}]
+
+    def test_add_layer_list_after_dict(self):
+        data = {}
+        path = 'test.!a.test'
+        set_by_path(path, data, 123)
+        assert data == {'test': [{'test': 123}]}
+
+        data = {}
+        path = 'test.!a.!a.!a.test'
+        set_by_path(path, data, 123)
+        assert data == {'test': [[[{'test': 123}]]]}
+
+    def test_get_from_empty(self):
+        data = {}
+        path = 'test.test'
+        assert get_by_path(path, data) == []
+
+    def test_delete_not_exist(self):
+        data = {'test': {}}
+        path = 'test.test'
+        with pytest.raises(StopWalk):
+            del_by_path(path, data, silent=False)
+        assert data == {'test': {}}
+
+    def test_set_in_list(self):
+        data = {'test': []}
+        path = 'test.0'
+        set_by_path(path, data, 1)
+        assert data == {'test': [1]}
+
+    def test_wildcard_set(self):
+        data = {'test': [0, 1, 2]}
+        path = 'test.*'
+        set_by_path(path, data, 999)
+        assert data == {'test': [999, 999, 999]}
+
+    def test_format(self):
+        text = 'Test {first}, with {second.0} {second.-1}'
+        expect = 'Test text, with path formatting'
+        data = {'first': 'text', 'second': ['path', 'alala', 'ololo', 'formatting']}
+        result = format(text, data)
+        print(result)
+        assert result == expect
+
+    def test_rebuilt_without_arrow(self):
+        data = {'test1': {'test2': 1}}
+        path = 'test1.test2'
+        result = rebuild(path, data=data)
+        assert result == {'test2': 1}
+
+    def test_rebuild_to_list(self):
+        data = [{'test1': 1}, {'test1': 2}]
+        result = rebuild('*.test1 -> !a.test2', data=data)
+        assert result == [{'test2': 1}, {'test2': 2}]

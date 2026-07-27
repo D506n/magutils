@@ -5,11 +5,6 @@ from typing import get_type_hints
 
 from dotenv import load_dotenv
 
-try:
-    from .ext import k8s
-except ImportError:
-    k8s = None
-
 
 class EnvValidationError(Exception):
     def __init__(self, *errs):
@@ -26,7 +21,7 @@ def _find_env():
     while path != stop:
         path = path.parent
         if (path / '.env').exists():
-            return path / '.env'
+            return path / '.env'  # nocov
 
 
 class ClassWrapper:

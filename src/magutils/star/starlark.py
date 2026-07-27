@@ -73,7 +73,6 @@ class StarResult[ResultType]():
     def error(self):
         if self._error:
             raise self._error
-        return None
 
     @error.setter
     def error(self, value):

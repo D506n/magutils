@@ -5,13 +5,11 @@ from .fields import field
 
 class LoggingMixin:
     LOG_LEVEL: str = field('INFO')
-    # --- Логирование: консоль ---
     CONSOLE_LOG_JSON: bool = field(False)
     CONSOLE_LOG_LEVEL: str = field("INFO")
     CONSOLE_LOG_COLOR: bool = field(True)
     CONSOLE_LOG_NOCUT: bool = field(False)
 
-    # --- Логирование: файл ---
     FILE_LOG_LEVEL: str = field("INFO")
     FILE_LOG_PATH: Path = field(Path("./data/logs/log.log"))
     FILE_LOG_NOCUT: bool = field(True)

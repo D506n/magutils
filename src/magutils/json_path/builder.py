@@ -37,7 +37,7 @@ def build_path(path: str) -> list[str | int]:
     parts = []
     for p in path.split('.'):
         if not p:
-            continue
+            raise ValueError(f'Invalid path: {path}')
         elif p.lstrip('-').isnumeric():
             parts.append(int(p))
         else:

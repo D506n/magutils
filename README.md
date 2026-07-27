@@ -37,9 +37,7 @@ uv add git+https://github.com/D506n/magutils
   - [pubsub](#utilspubsub)
   - [req_limit](#utilsreq_limit)
   - [schedulled_tasks](#utilsschedulled_tasks)
-  - [i18n](#utilsi18n)
-  - [tree_import](#utilstree_import)
-  - [checkout_helper](#utilscheckout_helper)
+  - [inter](#utilsi18n)
   - [env](#utilsenv)
   - [jwt](#utilsjwt)
   - [starlark](#utilsstarlark)
@@ -509,7 +507,7 @@ task.subscribe("my_job", job)
 task.schedule()
 ```
 
-### utils.i18n
+### utils.inter
 
 Модуль интернационализации с поддержкой множественных форм (плюрализация) через правила CLDR, загрузкой переводов из JSON/YAML файлов и автоматическим обновлением при изменении файлов.
 
@@ -518,7 +516,7 @@ task.schedule()
 #### Инициализация
 
 ```python
-from magutils.i18n import I18n
+from magutils.inter import I18n
 from pathlib import Path
 
 # Первый вызов создаёт экземпляр с указанными параметрами
@@ -696,103 +694,6 @@ print(i18n.t("plural", count=2))                    # У вас 2 яблока
 print(i18n.t("unknown", fallback="Запасной текст")) # Запасной текст
 ```
 
-### utils.tree_import
-
-Модуль для автоматической загрузки компонентов приложения, организованных в виде дерева директорий. Особенно полезен для регистрации маршрутов FastAPI, обработчиков телеграм-ботов (Telegrinder) и плагинов.
-
-#### Высокоуровневые функции
-
-##### `build_root_fastapi(path: Path, file_name: str = 'api_router.py', skip_err: bool = False) -> fastapi.APIRouter`
-
-Создаёт корневой `APIRouter`, который автоматически включает все роутеры, найденные в поддиректориях. Каждая поддиректория должна содержать файл `api_router.py` (или указанное имя) с экземпляром `APIRouter`.
-
-Пример структуры проекта:
-
-```
-routes/
-├── users/
-│   └── api_router.py
-├── posts/
-│   └── api_router.py
-└── admin/
-    └── api_router.py
-```
-
-Использование:
-
-```python
-from fastapi import FastAPI
-from magutils.tree_import import build_root_fastapi
-from pathlib import Path
-
-app = FastAPI()
-
-# Автоматически собираем все роутеры из директории routes
-root_router = build_root_fastapi(Path("routes"))
-app.include_router(root_router)
-
-# Теперь все маршруты из users, posts, admin доступны
-```
-
-Содержимое `routes/users/api_router.py`:
-
-```python
-from fastapi import APIRouter
-
-router = APIRouter(prefix="/users", tags=["users"])
-
-@router.get("/")
-async def list_users():
-    return [{"id": 1, "name": "Alice"}]
-```
-
-##### `build_root_telegrinder(path: Path, file_name: str = 'disp.py', skip_err: bool = False) -> telegrinder.Dispatch`
-
-Аналогично собирает диспетчеры для библиотеки Telegrinder (Telegram бот).
-
-##### `build_root(entity_type: type, root_path: Path, mod_name: str, add_name: str = 'load', skip_err: bool = False, **kwargs)`
-
-Универсальная функция для построения дерева любого типа, поддерживающего метод добавления дочерних компонентов (например, `include_router` у APIRouter, `load` у Dispatch).
-
-#### Низкоуровневая функция `import_tree`
-
-`import_tree(path: Path, target_class: type, skip_errors: bool = False, max_depth: int = None) -> list`
-
-Рекурсивно обходит директорию, импортирует все Python-модули и возвращает список экземпляров `target_class` (или его подклассов).
-
-Пример загрузки плагинов:
-
-```python
-from magutils.tree_import import import_tree
-from pathlib import Path
-
-class Plugin:
-    def run(self):
-        pass
-
-plugins = import_tree(Path("plugins"), Plugin)
-for plugin in plugins:
-    plugin.run()
-```
-
-#### Особенности
-
-- **Кэширование импорта**: каждый модуль импортируется только один раз.
-- **Гибкая настройка**: можно указать имя файла, метод добавления, обрабатывать ошибки.
-- **Поддержка вложенных структур**: рекурсивный обход поддиректорий.
-
-Модуль идеально подходит для поддержания чистоты архитектуры в больших проектах, где компоненты распределены по отдельным папкам.
-
-### utils.checkout_helper
-
-Утилита для помощи при переключении веток в Git с поддержкой миграций между ветками. Использует конфигурационный файл `checkout.json` для определения правил миграции.
-
-Использование:
-
-```bash
-python -m magutils.checkout_helper --migration main>demo
-```
-
 ### utils.env
 
 Модуль для работы с переменными окружения, включая валидацию, загрузку из `.env` файлов, YAML конфигураций и интеграцию с Kubernetes. Основан на декораторе `environ` и функции `field`.
@@ -802,7 +703,6 @@ python -m magutils.checkout_helper --migration main>demo
 - **Декоратор `environ`** – оборачивает класс, превращая его в синглтон с автоматической загрузкой переменных окружения.
 - **Функция `field`** – определяет поле конфигурации с возможностью указания значения по умолчанию, фабрики значений, алиасов.
 - **Расширение `yaml`** – предоставляет фабрику для загрузки значений из YAML файлов.
-- **Расширение `k8s`** – интеграция с Kubernetes Secrets (опционально).
 
 #### Использование
 
@@ -843,19 +743,6 @@ config = YamlConfig()
 ```
 
 Функция `yaml` возвращает фабрику, которая при первом обращении читает YAML файл и извлекает значение по указанному пути.
-
-#### Интеграция с Kubernetes Secrets
-
-Требуется установка дополнительных зависимостей (группа `k8s`). Пример:
-
-```python
-from magutils.env import environ, field
-from magutils.env.ext.k8s import k8s_secret
-
-@environ()
-class K8sConfig:
-    SECRET_TOKEN: str = field(default_factory=k8s_secret('my-secret', 'token'))
-```
 
 #### Кастомизация
 

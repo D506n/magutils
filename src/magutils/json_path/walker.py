@@ -46,8 +46,11 @@ class Walker[T]():
                     self._wildwalk(state, ctx)
                     ws += 1
                     break
-            if not alls or not ws:
-                raise KeyError()
+            if not alls or not ws:  # nocov может стрельнуть, но тестами 
+                # не покрывается, сигнал о том, что не предусмотрел состояния
+                raise KeyError(
+                    'Not found states for path: %s', 
+                    '/'.join([str(p) for p in ctx.path[:ctx.pos + 1]]))
             if not ctx.last_pos:
                 ctx.pos += 1
                 self._walk(ctx)

@@ -2,7 +2,7 @@ import asyncio as aio
 from datetime import datetime
 from functools import lru_cache
 from logging import getLogger
-from typing import Callable, Coroutine, Generic, TypeVar
+from typing import Callable, Coroutine, TypeVar, overload
 
 import cron_parser_py as cron
 
@@ -15,7 +15,7 @@ ET = TypeVar('ET', bound=datetime)
 logger = getLogger(__name__)
 
 
-class ScheduledTask(Generic[ET]):
+class ScheduledTask[T, ET]:
     def __init__(self, expr: str, payload: T, id: str = None):
         self.raw_expr = expr
         self.executions = 0
@@ -65,11 +65,19 @@ class ScheduledTask(Generic[ET]):
         '''
         raise NotImplementedError()
 
-    def emit(self):
+    @overload
+    def emit(self): ...
+
+    @overload
+    def emit(self, payload: T): ...
+
+    def emit(self, payload: T = None):
         '''Запускает выполнение задачи, вызывая всех подписчиков.
         
         Создаёт фоновые задачи для каждого коллбэка.
         '''
+        if payload:
+            self.payload = payload
         tasks = [t(self.payload) for t in self.subscribers.values()]
         BgTask.create(*tasks)
         self.executions += 1
@@ -97,7 +105,7 @@ class ScheduledTask(Generic[ET]):
         self.subscribers.pop(key)
 
 
-class CronTask(ScheduledTask[cron.CronExpression]):
+class CronTask[T](ScheduledTask[T, cron.CronExpression]):
     validator = cron.CronValidator()
     parser = cron.CronParser()
 
@@ -138,12 +146,12 @@ class CronTask(ScheduledTask[cron.CronExpression]):
         '''
         try:
             expr = cls.parser.parse(expr)
-        except cron.CronValidationError:
+        except (cron.CronValidationError, cron.CronParseError):
             return False
         return True
 
 
-class OneTimeTask(ScheduledTask[datetime]):
+class OneTimeTask[T](ScheduledTask[T, datetime]):
     date_fmt = "%Y-%m-%d %H:%M"
 
     def parse_expr(self, expr):
@@ -195,6 +203,7 @@ class Scheduler():
         self.sched_que: aio.Queue[str] = aio.Queue()
         self.alive = True
         self.main_task: aio.Task = None
+        self.shutdown_marker = object()
 
     def add_task(self, expr: str, payload, id: str = None):
         '''Создаёт задачу из выражения.
@@ -221,7 +230,7 @@ class Scheduler():
         raise ValueError('Invalid expression')
 
     async def exec_wrapper(self, task: ScheduledTask):
-        if task.next_run < get_current_time():
+        if task.next_run < get_current_time().replace(second=0, microsecond=0):
             if task.executions == 0:
                 logger.warning('Task cannot be executed in past time: %s, %s',
                     task.id, task.next_run)
@@ -245,12 +254,13 @@ class Scheduler():
 
     async def main(self):
         while self.alive:
-            try:
-                task = await self.sched_que.get()
-            except aio.QueueShutDown:
+            task = await self.sched_que.get()
+            if task is self.shutdown_marker:
                 return
             BgTask.create(self.exec_wrapper(task))
+            self.sched_que.task_done()
 
     def shutdown(self):
         self.alive = False
+        self.sched_que.put_nowait(self.shutdown_marker)
         self.sched_que.shutdown()

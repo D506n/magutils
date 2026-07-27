@@ -101,6 +101,8 @@ def config_async_logging(
     force: bool = True,
     env_prefix: str = '',
     mp_que: Queue[LogRecord] = None):
+    if not isinstance(formatter, Formatter) and formatter is not None:
+        raise TypeError('formatter must be a Formatter')
     level = level or os.getenv(f'{env_prefix}LOG_LEVEL', 'INFO')
     for handler in handlers or []:
         if handler.level == 0:

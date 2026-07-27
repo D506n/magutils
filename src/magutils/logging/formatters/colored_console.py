@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from colorama import Fore
 
+from ...json_path import deepmerge
 from . import defaults as DEF
 from .base import BaseFormatter
 
@@ -26,7 +27,7 @@ class ColoredConsoleFormatter(BaseFormatter):
         self.colors = DEF.COLORS
         self.no_cut = no_cut
         if isinstance(custom_colors, dict):
-            self.colors.update(custom_colors)
+            deepmerge(self.colors, custom_colors, False)
         if self.use_cache:
             self.get_level_color = lru_cache()(self.get_level_color)
             self.align_substring = lru_cache()(self.align_substring)
@@ -34,7 +35,7 @@ class ColoredConsoleFormatter(BaseFormatter):
         self.fields_mapping = self.parse_format(fmt)
         self.skip_fields = {'asctime', 'message'}
 
-    def get_level_color(self, level):
+    def get_level_color(self, level: str):
         return self.colors['level'].get(level, Fore.RESET)
 
     def color_substring(self, substring, color):

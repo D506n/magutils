@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.magutils.i18n import _I18n, I18n
+from magutils.inter import _I18n, I18n
 
 
 class TestI18n:

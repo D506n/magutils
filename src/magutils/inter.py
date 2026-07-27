@@ -81,7 +81,6 @@ class _I18n:
                 return
             if self.__check_translation(data, file):
                 return data
-            return
 
     def scan_dir(self):
         self.last_scan = get_current_time()

@@ -6,13 +6,13 @@ class State():
     def compile_check(self, 
                       path: list[str | int], 
                       pos: int, 
-                      intent: type[Intent]):
+                      intent: type[Intent]):  # nocov
         return False
 
-    def run_check(self, ctx: Ctx):
+    def run_check(self, ctx: Ctx):  # nocov
         return False
 
-    def __call__(self, ctx: Ctx):
+    def __call__(self, ctx: Ctx):  # nocov
         return
 
     def priority(self, path: list[str | int], pos: int, intent: type[Intent]):
@@ -36,14 +36,15 @@ class State():
 
     def next_step(self, ctx: Ctx):
         if (
-                (ctx.key in ctx.data) 
-                or (not ctx.is_key(ctx.key) 
+                (not ctx.is_key(ctx.key) 
                     and ctx.key <= len(ctx.data)
                     and len(ctx.data) > 0)
+                or (ctx.key in ctx.data)
             ):
             ctx.data = ctx.data[ctx.key]
-        elif ctx.last_pos:
-            return
+        # elif ctx.last_pos:
+        #     return
+        # Выполняется в другом месте, удостоверюсь что всё ок и удалю
         else:
             self.add_layer(ctx)
             ctx.data = ctx.data[ctx.key]
@@ -75,19 +76,20 @@ class KeySetAccess(KeyAccess):
         )
 
     def __call__(self, ctx: Ctx):
-        if isinstance(ctx.data, dict):
-            if ctx.last_pos:
-                ctx.data[ctx.key] = ctx.value
-                ctx.result.append(ctx.data[ctx.key])
-            elif ctx.intent == Set:
-                self.add_layer(ctx)
-            else:
-                raise StopWalk()
-        elif isinstance(ctx.data, list):
-            if ctx.last_pos:
-                ctx.data.append(ctx.value)
-            else:
-                self.add_layer(ctx)
+        # if isinstance(ctx.data, dict):
+        if ctx.last_pos:
+            ctx.data[ctx.key] = ctx.value
+            ctx.result.append(ctx.data[ctx.key])
+        elif ctx.intent == Set:
+            self.add_layer(ctx)
+        else:
+            raise StopWalk()
+        # Проверка на список лишняя, для списков свои состояния
+        # elif isinstance(ctx.data, list):
+        #     if ctx.last_pos:
+        #         ctx.data.append(ctx.value)
+        #     else:
+        #         self.add_layer(ctx)
         self.next_step(ctx)
 
     def priority(self, path, pos, intent):
@@ -111,6 +113,8 @@ class DelState(State):
             raise StopWalk('Key not found')
 
     def priority(self, path, pos, intent):
+        if path[pos] == "*":
+            return 100
         return 0
 
 
@@ -137,10 +141,7 @@ class ListAppend(State):
         )
 
     def priority(self, path, pos, intent):
-        if intent == Set:
-            return 0
-        else:
-            return super().priority(path, pos, intent)
+        return 0
 
     def run_check(self, ctx):
         return True
@@ -207,6 +208,9 @@ class WGet(WildcardState):
 
 
 class WDel(WildcardState):
+    def priority(self, path, pos, intent):
+        return 0
+
     def compile_check(self, path, pos, intent):
         return (
             super().compile_check(path, pos, intent)

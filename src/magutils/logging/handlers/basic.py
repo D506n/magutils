@@ -3,6 +3,9 @@ import atexit
 from asyncio import Queue, create_task
 from logging import Handler, LogRecord
 from threading import Event
+from typing import Any, Generator
+
+from ..formatters.base import BaseFormatter
 
 
 class BaseAsyncHandler(Handler):
@@ -11,7 +14,6 @@ class BaseAsyncHandler(Handler):
         self._closed = False 
         self.queue: Queue[LogRecord] = Queue()
         self.bg_task = None
-        self._shutdown_marker = object()
         self.closing_event = Event()
         atexit.register(self.close)
 
@@ -29,26 +31,20 @@ class BaseAsyncHandler(Handler):
 
     async def read_queue(self, at_exit=False):
         while not self.closing_event.is_set():
-            record = await self.queue.get()
-            if record is self._shutdown_marker:
-                self.queue.task_done()
-                self.queue.shutdown()
-                break
+            try:
+                record = await asyncio.wait_for(self.queue.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                continue
             try:
                 await self.ahandle(record, at_exit=at_exit)
                 self.queue.task_done()
-            except Exception:
+            except Exception:  # nocov я пока не нашёл случаев когда может 
+                # возникнуть такая ошибка, в будущем дополню
                 self.handleError(record)
+        self.queue.shutdown()
 
     async def ahandle(self, record: LogRecord, at_exit=False):
         raise NotImplementedError()
-
-    async def ajoin(self):
-        if self.bg_task\
-        and (self.bg_task.done() or self.bg_task.cancelled())\
-        and not self.queue.empty():
-            await self.read_queue(at_exit=True)
-            self.bg_task = None
 
     def chandle(self, record):
         pass
@@ -68,5 +64,24 @@ class BaseAsyncHandler(Handler):
             except Exception:
                 break
             self.chandle(log)
-        if getattr(self, 'buffer'):
+        if getattr(self, 'buffer', None):
             self.cflush()
+
+    def extract_exception(self, record: LogRecord):
+        result = None
+        if isinstance(record.msg, Exception):
+            result = record.msg
+        elif len(record.args) == 1 and isinstance(record.args[0], Exception):
+            result = record.args[0]
+        return result
+
+    def format_exception(self, 
+            record: LogRecord,
+            e: Exception,
+            trace_id: str,
+            limit: int = 25
+    ) -> Generator[str, Any, None] | list[str]:
+        fmt = self.formatter
+        if not fmt or not hasattr(fmt, 'format_exception'):
+            fmt = BaseFormatter()
+        return fmt.format_exception(record, e, trace_id, limit)

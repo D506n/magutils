@@ -1,15 +1,20 @@
 import asyncio
+import sys
+from logging import LogRecord
+from typing import TextIO
 
+from ...id import gen_id
 from .basic import BaseAsyncHandler
 
 
 class AsyncConsoleHandler(BaseAsyncHandler):
-    def __init__(self, buffer_size: int = 500, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, buffer_size: int = 500, stdout: TextIO = None, *a, **kw):
+        super().__init__(*a, **kw)
         self.buffer: list[str] = []
         self.buffer_size = buffer_size
         self.delayed_flush: asyncio.Task = None
         self.alock = asyncio.Lock()
+        self.stdout = stdout or sys.stdout
 
     async def daflush(self):
         await asyncio.sleep(0.01)
@@ -23,11 +28,11 @@ class AsyncConsoleHandler(BaseAsyncHandler):
 
     def cflush(self):
         if self.buffer:
-            print('\n'.join(self.buffer))
+            self.stdout.write('\n'.join(self.buffer) + '\n')
+            self.stdout.flush()
             self.buffer.clear()
 
-    async def ahandle(self, record, at_exit):
-        msg = self.format(record)
+    async def __ahandle(self, msg: str):
         if len(self.buffer) < self.buffer_size:
             self.buffer.append(msg)
         else:
@@ -36,10 +41,45 @@ class AsyncConsoleHandler(BaseAsyncHandler):
         if self.delayed_flush is None:
             self.delayed_flush = asyncio.create_task(self.daflush())
 
-    def chandle(self, record):
-        msg = self.format(record)
+    async def ahandle(self, record, at_exit):
+        if e := self.extract_exception(record):
+            _id = gen_id()
+            msgs = self.format_exception(record, e, _id)
+            if isinstance(msgs, list):
+                record.call_stack = msgs
+                msg = self.format(record)
+                await self.__ahandle(msg)
+            else:
+                record.msg = f'<{_id}>{record.msg}'
+                msg = self.format(record)
+                await self.__ahandle(msg)
+                for msg in msgs:
+                    await self.__ahandle(msg)
+        else:
+            msg = self.format(record)
+            await self.__ahandle(msg)
+
+    def __chandle(self, msg: str):
         if len(self.buffer) < self.buffer_size:
             self.buffer.append(msg)
         else:
             self.cflush()
             self.buffer.append(msg)
+
+    def chandle(self, record: LogRecord):
+        if e := self.extract_exception(record):
+            _id = gen_id()
+            msgs = self.format_exception(record, e, _id)
+            if isinstance(msgs, list):
+                record.call_stack = msgs
+                msg = self.format(record)
+                self.__chandle(msg)
+            else:
+                record.msg = f'<{_id}>{record.msg}'
+                msg = self.format(record)
+                self.buffer.append(msg)
+                for msg in msgs:
+                    self.__chandle(msg)
+        else:
+            msg = self.format(record)
+            self.__chandle(msg)
