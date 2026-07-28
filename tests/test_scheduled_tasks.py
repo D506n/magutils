@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch, Mock
 import asyncio as aio
 import logging
 from src.magutils.bg_tasks import BgTask
+from datetime import timedelta
 
 
 class TestScheduledTask:
@@ -85,7 +86,7 @@ class TestScheduler:
     async def test_exec_wrapper(self, caplog):
         def gct():
             dt = get_current_time()
-            return dt.replace(second=dt.second+1)
+            return dt + timedelta(seconds=1)
         mock = AsyncMock()
         dt = get_current_time()
         past_task = OneTimeTask[int]('1970-01-01 00:00', 123)

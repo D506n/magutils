@@ -34,6 +34,7 @@ class BaseFormatter(Formatter):
         rows = extract_tb(e.__traceback__, limit=limit * -1)
         for r in rows:
             newr = copy(rec)
+            newr.args = tuple()
             newr.msg = (f'<{trace_id}>File: "{r.filename}", '
                                 f'line: {r.lineno}, in: {r.line}')
             yield self.format(newr)

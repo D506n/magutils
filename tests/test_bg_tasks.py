@@ -67,7 +67,7 @@ class TestBgTask:
         await asyncio.sleep(delay)
         
         # Проверяем, что сообщение об ошибке записано в лог
-        assert "Got exception in background task. ValueError: Test error" in caplog.text
+        assert "Got exception in background task. Test error" in caplog.text
     
     @pytest.mark.asyncio
     async def test_task_critical_error_handling(self, reset_bg_task):

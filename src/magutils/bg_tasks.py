@@ -38,9 +38,9 @@ class BgTask:
             if not raise_errors:
                 logger.error(
                     'Got exception in background task. %s', 
-                    f'{e.__class__.__name__}: {e}')
+                    e)
             else:  # nocov
                 logger.critical(
                     'Got critical error in background task. %s', 
-                    traceback.format_exc())
+                    e)
                 sys.exit(1)
