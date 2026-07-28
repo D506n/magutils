@@ -1,6 +1,5 @@
 import asyncio as a
 import sys
-import traceback
 from functools import partial
 from logging import getLogger
 from typing import Awaitable, Self
