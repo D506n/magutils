@@ -85,7 +85,7 @@ class ROProxy:
 
 class FluentReq:
     def __init__(self, base_url: str = None):
-        self._method: METHODS = "GET"
+        self.__method: METHODS = None
         self._base_url: str = base_url
         self._url: str = ''
         self._params: dict[str, str] = {}
@@ -103,8 +103,17 @@ class FluentReq:
         self._serialized_body: bytes = None
         self.__lock = Lock()
 
+    @property
+    def _method(self):
+        if self.__method:
+            return self.__method
+        if self._body:
+            return 'POST'
+        else:
+            return 'GET'
+
     def method(self, method: METHODS) -> Self:
-        self._method = method
+        self.__method = method
         return self
 
     def base_url(self, url: str) -> Self:
