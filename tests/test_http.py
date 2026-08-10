@@ -458,7 +458,7 @@ class TestFluentRequest:
             " --header 'Authorization: ***'"
         )}),
             ({"params": {"hello": "pytest"}, "body": {"test": "data"}}, {"curl": (
-                "curl --request GET --url 'http://localhost?hello=pytest' "
+                "curl --request POST --url 'http://localhost?hello=pytest' "
                 "--header 'Content-Type: application/json' "
                 "--header 'Accept: application/json' "
                 '--data \'{"test":"data"}\''

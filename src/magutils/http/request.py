@@ -188,7 +188,7 @@ class FluentReq:
         if logger.isEnabledFor(10):  # nocov
             logger.debug('%s: %s%s p: %s|h: %s|b: %s|c: %s',
                 self._method,
-                self._base_url,
+                self._base_url or client.base_url,
                 self._url,
                 self._params,
                 self.get.sec_headers,
