@@ -203,3 +203,9 @@ class TestJsonPath:
         data = [{'test1': 1}, {'test1': 2}]
         result = rebuild('*.test1 -> !a.test2', data=data)
         assert result == [{'test2': 1}, {'test2': 2}]
+
+    def test_deepmerge_iterable(self):
+        data = {'test': [{"test1": 1}]}
+        test = {"test": [{'test2': 2}]}
+        result = deepmerge(data, test)
+        assert result == {'test': [{'test1': 1, 'test2': 2}]}

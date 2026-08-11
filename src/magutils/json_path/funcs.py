@@ -84,6 +84,9 @@ def __deepmerge(old: dict, new: dict):
     for k, v in new.items():
         if isinstance(v, Mapping):
             old[k] = __deepmerge(old.get(k, {}), v)
+        elif isinstance(v, (list, set)) and isinstance(old.get(k), (list, set)):
+            for o, n in zip(old[k], new[k]):
+                __deepmerge(o, n)
         else:
             old[k] = v
     return old
