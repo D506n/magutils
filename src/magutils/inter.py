@@ -171,3 +171,15 @@ class _I18n:
 @singleton
 class I18n(_I18n):
     pass
+
+
+def text(
+        key: str, 
+        lang: str = None, 
+        fallback: str = None, 
+        strict: bool = False, 
+        **kwargs
+) -> str:
+    '''Обёртка для отложенного вызова.'''
+    inst = I18n()
+    return inst.t(key, lang, fallback, strict, **kwargs)

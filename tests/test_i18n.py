@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from magutils.inter import _I18n, I18n
+from magutils.inter import _I18n, I18n, text
 
 
 class TestI18n:
@@ -461,3 +461,7 @@ class TestI18n:
         assert i18n.t('hello', name='Иван') == 'Привет, Иван!'
         i18n.current_lang = 'en'
         assert i18n.t('hello', name='Billy') == 'Hello, Billy!'
+
+    def test_text_wrapper(self, temp_locdir):
+        I18n(temp_locdir)
+        assert text('hello', name='Иван', lang='ru') == 'Привет, Иван!'
