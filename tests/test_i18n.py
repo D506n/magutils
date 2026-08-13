@@ -454,3 +454,10 @@ class TestI18n:
         # В строгом режиме должно быть KeyError
         with pytest.raises(KeyError, match='en:plural'):
             i18n.t('plural', lang='en', count=5, strict=True)
+
+    def test_t_default_lang(self, temp_locdir):
+        '''Если не указан язык, то выбирается текущий язык, если текущий не установлен - первый из загруженных'''
+        i18n = _I18n(temp_locdir)
+        assert i18n.t('hello', name='Иван') == 'Привет, Иван!'
+        i18n.current_lang = 'en'
+        assert i18n.t('hello', name='Billy') == 'Hello, Billy!'

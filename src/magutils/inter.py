@@ -149,6 +149,11 @@ class _I18n:
             fallback: str = None, 
             strict: bool = False, 
             **kwargs):
+        if lang is None:
+            if curr := self.current_lang:
+                lang = curr
+            else:
+                lang = list(self.dictionaries.keys())[0]
         try:
             self.__check_lang(lang)
             text_obj = get_by_path(key, self.dictionaries[lang])
