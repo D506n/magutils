@@ -179,12 +179,12 @@ class FluentReq:
 
     async def __execute(self, client: AsyncClient):
         async with self.__lock:
-            if self._body and not self._serialized_body:
-                self._serialized_body = orjson.dumps(self._body)
             if not self._before_scripts_done:
                 for script in self._before_scripts:
                     await self.__exec_script(script)
                 self._before_scripts_done = True
+            if self._body and not self._serialized_body:
+                self._serialized_body = orjson.dumps(self._body)
         if logger.isEnabledFor(10):  # nocov
             logger.debug('%s: %s%s p: %s|h: %s|b: %s|c: %s',
                 self._method,
