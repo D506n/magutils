@@ -44,7 +44,7 @@ class Config(metaclass=ConfigMeta):
     pass
 
 
-def gen_id(alphabet: str =None, size: int = None):
+def gen_id(alphabet: str = None, size: int = None):
     # 3 триллиона idшников исчерпаются примерно никогда https://zelark.github.io/nano-id-cc/
     return nanoid.generate(alphabet or Config.alphabet, size or Config.size)
 
