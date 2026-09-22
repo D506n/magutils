@@ -55,9 +55,7 @@ def __add_layer(parent: Path, data: dict | list | Any, mode: modes):
         __add_list_layer(parent, data, mode)
 
 
-def dict_to_paths(data: dict, mode: modes = 'wild'):
+def data_to_paths(data: list[dict], mode: modes = 'wild'):
     result = Path()
-    for k, v in data.items():
-        path = Path(k, result)
-        __add_layer(path, v, mode)
+    __add_layer(result, data, mode)
     return result.compile()

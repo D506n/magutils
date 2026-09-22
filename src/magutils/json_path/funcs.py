@@ -4,6 +4,7 @@ from copy import deepcopy
 from functools import lru_cache
 from typing import Any, overload
 
+from .data_to_path import data_to_paths
 from .intent import Del, Get, Set
 from .walker import Walker
 
@@ -107,3 +108,49 @@ def format(text: str, data: dict):
             get_by_path(key[1:-1], data, default=key[1:-1])])
         text = text.replace(key, new_val)
     return text
+
+
+def to_flat(data: dict | list[dict]) -> dict[str, Any]:
+    """Преобразует вложенную структуру в плоский dict: путь -> значение.
+
+    Ключами являются пути в strict-режиме (списки получают числовые
+    индексы). Пути, не дающие значений (например, от пустых списков),
+    пропускаются.
+    """
+    paths = data_to_paths(data, 'strict')
+    flat = {}
+    for path in paths:
+        values = get_by_path(path, data)
+        if values:
+            flat[path] = values[0]
+    return flat
+
+
+def get_diff(old: list[dict] | dict, new: list[dict] | dict):
+    """Возвращает структурированный дифф между двумя структурами.
+
+    Результат содержит три секции:
+    - 'add' — пути, появившиеся в new;
+    - 'del' — пути, пропавшие из old;
+    - 'upd' — пути, значения которых изменились ('old'/'new').
+    """
+    flat_old = to_flat(old)
+    flat_new = to_flat(new)
+    old_paths = set(data_to_paths(old, 'strict'))
+    new_paths = set(data_to_paths(new, 'strict'))
+    delete = sorted(list(old_paths - new_paths))
+    add = sorted(list(new_paths - old_paths))
+    update = sorted(list(
+        old_paths.intersection(new_paths)
+        .intersection(flat_old.keys())
+        .intersection(flat_new.keys())
+    ))
+    return {
+        "add": {k: flat_new[k] for k in add if k in flat_new},
+        'del': {k: flat_old[k] for k in delete if k in flat_old},
+        'upd': {k: {
+            'old': flat_old[k],
+            'new': flat_new[k]}
+            for k in update if flat_old[k] != flat_new[k]
+        }
+    }

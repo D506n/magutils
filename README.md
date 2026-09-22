@@ -164,30 +164,43 @@ handler = AsyncFileHandler(
 
 ### utils.id
 
-`def gen_id(alphabet: str = DEFAULT_ALPHABET, size: int = 15)`
+`def gen_id(alphabet: str = None, size: int = None)`
 
 Функция для генерации строк ID работает на основе алгоритма NanoID. Стандартный алфавит: `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
 Такие ID остаются весьма уникальными, при более короткой строке чем uuid4. Калькулятор уникальности: https://zelark.github.io/nano-id-cc/
 С параметрами которые выставлены в функции по умолчанию, для вероятности коллизии 1% нужно сгенерировать 3 триллиона ID.
 
+#### Конфигурация по умолчанию
+
+Значения по умолчанию задаются глобально через класс `Config`:
+
+- `Config.size` — длина ID (по умолчанию 15, минимально допустимая — 5).
+- `Config.alphabet` — алфавит генерации (по умолчанию буквы латинского алфавита и цифры; минимум 10 уникальных символов).
+
+При установке значений применяется валидация, некорректные значения вызывают `ValueError`.
+
+#### Параметры функции
+
+Параметры `alphabet` и `size` позволяют переопределить глобальную конфигурацию для конкретного вызова, не изменяя `Config`:
+
+- `size` — длина генерируемого ID. Если не передан, используется `Config.size`.
+- `alphabet` — набор символов для генерации. Если не передан, используется `Config.alphabet`.
+
+К параметрам применяются те же правила валидации, что и к конфигурации: `size >= 5`, `len(alphabet) >= 10`.
+
 Пример:
 
 ```python
-from magutils.id import gen_id
+from magutils.id import gen_id, Config
 
-for _ in range(10):
-    print(gen_id())
+gen_id()                          # 15 символов, стандартный алфавит
+gen_id(size=10)                   # 10 символов, стандартный алфавит
+gen_id(alphabet='0123456789ABCDEF')  # 15 символов, только hex-символы
+gen_id(size=8, alphabet='0123456789')  # 8 цифр
 
-# >>> 9VkeORlHnV1pMjA
-# >>> 5WPGxwzkUq1uhsf
-# >>> jzBKy3oTshI8ABB
-# >>> RjzcPqEM5v7hhip
-# >>> he7ldhY0upiNrCg
-# >>> aSzH7nXQtrND7QG
-# >>> LkEJuotny94FpPM
-# >>> 459YeBcpmMZOqcw
-# >>> 36zjHPRVkKPfjbc
-# >>> 8FlKsU3hWVQOiBE
+# Глобальная конфигурация не изменяется
+print(Config.size)      # 15
+print(Config.alphabet)  # abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
 ```
 
 ### utils.json_path
@@ -232,6 +245,39 @@ for _ in range(10):
 ##### `format(template: str, data: dict) -> str`
 
 Заменяет в строке плейсхолдеры `{путь}` на значения из `data`. Поддерживает wildcard и индексы.
+
+##### `to_flat(data: dict | list[dict]) -> dict[str, Any]`
+
+Преобразует вложенную структуру в «плоский» словарь: ключи — строковые пути (strict-режим, элементы списков получают числовые индексы), значения — конечные данные. Пути, не дающие значений (например, от пустых списков), пропускаются.
+
+```python
+from magutils.json_path import to_flat
+
+to_flat({'store': {'books': [{'title': 'A'}, {'title': 'B'}]}})
+# {'store.books.0.title': 'A', 'store.books.1.title': 'B'}
+```
+
+##### `get_diff(old: dict | list[dict], new: dict | list[dict]) -> dict`
+
+Возвращает структурированный дифф между двумя структурами. Сравнение ведётся по строгим путям (`to_flat`). Результат содержит секции:
+
+- `add` — пути, появившиеся в `new`;
+- `del` — пути, пропавшие из `old`;
+- `upd` — пути, значения которых изменились (каждый элемент содержит `old` и `new` значения).
+
+```python
+from magutils.json_path import get_diff
+
+old = {'user': {'name': 'Alice', 'age': 30, 'city': 'Moscow'}}
+new = {'user': {'name': 'Alice', 'age': 31, 'email': 'a@x.ru'}}
+
+get_diff(old, new)
+# {
+#   'add': {'user.email': 'a@x.ru'},
+#   'del': {'user.city': 'Moscow'},
+#   'upd': {'user.age': {'old': 30, 'new': 31}},
+# }
+```
 
 #### Класс `Walker`
 
@@ -288,7 +334,7 @@ print(ctx.result)  # [39.99, 45.5, 89.99]
 - **Кэширование**: `Walker` кэширует скомпилированные пути для повторного использования.
 - **Типизация**: поддерживает generics для работы с типизированными структурами.
 
-#### `dict_to_paths(data: dict, mode: Literal['wild', 'full', 'strict'] = 'wild') -> list[str]`
+#### `data_to_paths(data: dict, mode: Literal['wild', 'full', 'strict'] = 'wild') -> list[str]`
 
 Преобразует вложенный словарь/список в список строковых путей. Параметр `mode` определяет, как обрабатываются списки:
 
@@ -297,7 +343,7 @@ print(ctx.result)  # [39.99, 45.5, 89.99]
 - **`'full'`** — каждый элемент списка порождает отдельный путь через `*` (с дедупликацией). Отличается от `'wild'` тем, что обходит каждый элемент структуры, а не только первый.
 
 ```python
-from magutils.json_path.dict_to_path import dict_to_paths
+from magutils.json_path.data_to_path import data_to_paths
 
 data = {
     "groups": [
@@ -309,12 +355,12 @@ data = {
 
 # Режим 'wild' — обходит только первый элемент списка (data[0])
 #   Пропускает owner (есть только во втором элементе)
-dict_to_paths(data)
+data_to_paths(data)
 # ['groups.*.admin', 'groups.*.id', 'groups.*.tags.*']
 
 # Режим 'strict' — каждый элемент со своим индексом
 #   Виден весь набор ключей каждого элемента
-dict_to_paths(data, mode='strict')
+data_to_paths(data, mode='strict')
 # ['groups.0.admin', 'groups.0.id', 'groups.0.tags.0', 'groups.0.tags.1',
 #  'groups.1.admin', 'groups.1.id', 'groups.1.owner', 'groups.1.tags.0',
 #  'groups.2.id', 'groups.2.tags.0', 'groups.2.tags.1', 'groups.2.tags.2']
@@ -322,7 +368,7 @@ dict_to_paths(data, mode='strict')
 # Режим 'full' — обходит каждый элемент, но схлопывает в *
 #   В отличие от 'wild' — видит owner (есть во втором элементе)
 #   В отличие от 'strict' — использует * вместо индексов
-dict_to_paths(data, mode='full')
+data_to_paths(data, mode='full')
 # ['groups.*.admin', 'groups.*.id', 'groups.*.owner', 'groups.*.tags.*']
 ```
 

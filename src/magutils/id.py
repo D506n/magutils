@@ -45,7 +45,14 @@ class Config(metaclass=ConfigMeta):
 
 
 def gen_id(alphabet: str = None, size: int = None):
-    # 3 триллиона idшников исчерпаются примерно никогда https://zelark.github.io/nano-id-cc/
+    if size is not None and size < 5:
+        raise ValueError('The id size cannot be shorter than 5 characters.')
+    if alphabet is not None and len(alphabet) < 10:
+        raise ValueError(
+            'The alphabet must contain at least 10 characters. '
+        )
+    # 3 триллиона idшников исчерпаются примерно никогда
+    # https://zelark.github.io/nano-id-cc/
     return nanoid.generate(alphabet or Config.alphabet, size or Config.size)
 
 
