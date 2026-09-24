@@ -147,7 +147,7 @@ class TestFluentRequest:
         assert getattr(proxy, "url") == ""
         assert getattr(proxy, "params") == {}
         assert getattr(proxy, "headers") == {"Content-Type": "application/json", "Accept": "application/json"}
-        assert getattr(proxy, "cookies") == {}
+        assert getattr(proxy, "cookies") == None
         assert getattr(proxy, "body") == {}
         assert getattr(proxy, "retries") == 3
 
@@ -268,9 +268,8 @@ class TestFluentRequest:
             assert resp is mock_response
             MockClient.assert_called_once_with(base_url="https://httpbin.org")
             mock_client.request.assert_awaited_once_with(
-                "GET", "/get", data=None, params={},
-                headers={"Content-Type": "application/json", "Accept": "application/json"},
-                cookies={}
+                "GET", "/get", content=None, params={},
+                headers={"Content-Type": "application/json", "Accept": "application/json"}, cookies=None
             )
 
     @pytest.mark.asyncio
@@ -289,7 +288,7 @@ class TestFluentRequest:
         assert resp is mock_response
         mock_client.request.assert_awaited_once()
         call_kwargs = mock_client.request.await_args[1]
-        assert call_kwargs["data"] == orjson.dumps({"key": "value"})
+        assert call_kwargs["content"] == orjson.dumps({"key": "value"})
 
     @pytest.mark.asyncio
     async def test_execute_serializes_body_once(self):

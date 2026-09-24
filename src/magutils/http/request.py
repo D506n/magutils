@@ -1,3 +1,4 @@
+import sys
 from asyncio import Lock
 from logging import getLogger
 from typing import Literal, Self, TypedDict
@@ -6,6 +7,11 @@ import orjson
 from httpx import AsyncClient, Response
 
 from .helpers import QHookRunner
+
+if sys.version_info.major == 3 and sys.version_info.minor >= 13:  # nocov
+    from warnings import deprecated
+else:
+    from typing_extensions import deprecated
 
 logger = getLogger(__name__)
 
@@ -93,7 +99,7 @@ class FluentReq:
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        self._cookies: dict[str, str] = {}
+        self._cookies: dict[str, str] = None
         self._body: dict = {}
         self._retries: int = 3
         self._before_scripts: list[str] = []
@@ -132,8 +138,15 @@ class FluentReq:
         self._headers.update(headers)
         return self
 
+    @deprecated(
+        'Setting a cookie via the request object is deprecated; '
+        'set the cookie directly via AsyncClient.'
+    )
     def cookies(self, cookies: dict[str, str]) -> Self:
-        self._cookies.update(cookies)
+        if self._cookies:
+            self._cookies.update(cookies)
+        else:
+            self._cookies = cookies
         return self
 
     def body(self, data: dict) -> Self:
@@ -198,7 +211,7 @@ class FluentReq:
         response = await client.request(
             self._method,
             self._url,
-            data=self._serialized_body,
+            content=self._serialized_body,
             params=self._params,
             headers=self._headers,
             cookies=self._cookies,
