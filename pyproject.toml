@@ -55,7 +55,8 @@ source = ["./src/magutils"]
 omit = [
     "__init__.py",
     "checkout_helper.py",
-    "t.py"
+    "t.py",
+    "*/.*/*"
 ]
 
 [tool.coverage.report]

@@ -184,10 +184,13 @@ class TestFluentRequest:
         assert getattr(req.get, "headers")["Content-Type"] == "text/plain"
 
     def test_cookies_fluent(self):
-        """cookies() добавляет куки."""
+        """cookies() добавляет и объединяет куки (устаревший API — ожидается DeprecationWarning)."""
         req = FluentReq()
-        req.cookies({"session": "abc123"})
-        assert getattr(req.get, "cookies") == {"session": "abc123"}
+        with pytest.warns(DeprecationWarning):
+            req.cookies({"session": "abc123"})
+            # повторный вызов попадает в ветку if self._cookies → self._cookies.update(...)
+            req.cookies({"theme": "dark"})
+        assert getattr(req.get, "cookies") == {"session": "abc123", "theme": "dark"}
 
     def test_body_fluent(self):
         """body() добавляет поля в тело запроса."""
@@ -225,11 +228,15 @@ class TestFluentRequest:
         """copy() создаёт независимую копию FluentRequest."""
         req = FluentReq("https://base.com")
         req.method("POST").url("/path").params({"q": "1"}).headers({"X-ID": "123"})
-        req.cookies({"s": "tok"}).body({"data": 1}).retries(5)
+        with pytest.warns(DeprecationWarning):
+            req.cookies({"s": "tok"})
+        req.body({"data": 1}).retries(5)
         req.script("before_script", typ="before")
         req.script("after_script", typ="after")
 
-        copied = req.copy()
+        # copy() внутри вызывает устаревший cookies(), поэтому тоже ожидаем предупреждение
+        with pytest.warns(DeprecationWarning):
+            copied = req.copy()
 
         # Значения совпадают
         assert getattr(copied.get, "method") == "POST"
@@ -247,6 +254,15 @@ class TestFluentRequest:
         copied.method("GET").url("/other")
         assert getattr(req.get, "method") == "POST"
         assert getattr(req.get, "url") == "/path"
+
+    def test_copy_without_cookies_keeps_none(self):
+        """copy() без cookies не выполняет ветку if self._cookies — копия остаётся с cookies=None."""
+        req = FluentReq("https://base.com")
+        req.method("GET").url("/path")
+
+        copied = req.copy()
+
+        assert getattr(copied.get, "cookies") is None
 
     @pytest.mark.asyncio
     async def test_execute_without_client_creates_new(self):

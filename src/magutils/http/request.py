@@ -10,7 +10,7 @@ from .helpers import QHookRunner
 
 if sys.version_info.major == 3 and sys.version_info.minor >= 13:  # nocov
     from warnings import deprecated
-else:
+else:  # nocov
     from typing_extensions import deprecated
 
 logger = getLogger(__name__)
@@ -239,9 +239,10 @@ class FluentReq:
             .url(self.get.url)\
             .params(self.get.params)\
             .headers(self.get.headers)\
-            .cookies(self.get.cookies)\
             .body(self.get.body)\
             .retries(self.get.retries)
+        if self._cookies:
+            inst.cookies(self.get.cookies)
         inst._before_scripts = self._before_scripts.copy()
         inst._after_scripts = self._after_scripts.copy()
         return inst
