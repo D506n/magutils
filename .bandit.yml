@@ -1,0 +1,8 @@
+exclude_dirs:
+  - tests
+  - migrations
+  - .venv
+  - build
+  - .*
+skips:
+  - B101

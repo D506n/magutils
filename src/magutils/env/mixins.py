@@ -44,5 +44,5 @@ class CORSMixin:
 
 
 class APIMixin:
-    API_HOST: str = field('0.0.0.0')
+    API_HOST: str = field('0.0.0.0')  # nosec B104
     API_PORT: int = field(8506)

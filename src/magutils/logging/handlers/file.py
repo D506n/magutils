@@ -135,7 +135,7 @@ class LogFile:
                 fparams.pop('encoding', None)
             try:
                 self.stream.close()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             try:
                 self.stream = open(mode=mode, **fparams)

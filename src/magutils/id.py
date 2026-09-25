@@ -1,7 +1,7 @@
 from functools import lru_cache
 from string import ascii_letters, digits
 
-import nanoid
+import fastnanoid as nanoid
 
 
 class ConfigMeta(type):
