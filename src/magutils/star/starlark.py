@@ -59,8 +59,7 @@ class StarResult[ResultType]():
 
     @property
     def result(self) -> ResultType:
-        if self.success:
-            assert self._res is not None
+        if self.success and self._res is not None:
             return self._res
         else:
             raise self.error
