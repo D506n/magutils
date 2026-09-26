@@ -2,6 +2,7 @@ import os
 from functools import partial
 from types import GenericAlias
 from typing import Any, Callable
+from typing import Optional as OP
 
 from pydantic import TypeAdapter
 
@@ -14,7 +15,7 @@ class UndefinedField:
 class FieldConstructor():
     def __init__(self, 
                  default_value: Any | None, 
-                 default_factory: Callable[[], Any] | None, 
+                 default_factory: Callable[..., Any] | None, 
                  aliases: list[str] | None,
                  field_name: str,
                  hint: Any,
@@ -25,21 +26,22 @@ class FieldConstructor():
         self.aliases = aliases
         self.hint = hint
         self.adapter = TypeAdapter(hint)
-        self.env_prefix = env_prefix
+        self.env_prefix = env_prefix or ''
 
     def _get_value(self, ctx: dict):
-        val = os.getenv(self.env_prefix + self.field_name, UndefinedField())
+        undef = UndefinedField()
+        val = os.getenv(self.env_prefix + self.field_name) or undef
 
         if not val and self.aliases:
             for alias in self.aliases:
-                val = os.getenv(self.env_prefix + alias)
+                val = os.getenv(self.env_prefix + alias) or undef
                 if val:
                     break
 
-        if val and (isinstance(self.hint, GenericAlias) 
+        if isinstance(val, str) and (isinstance(self.hint, GenericAlias) 
               or self.hint in {dict, list}):
             return self.adapter.validate_json(val)
-        elif val:
+        elif isinstance(val, str):
             return self.adapter.validate_python(val)
 
         if self.default_factory:
@@ -60,6 +62,6 @@ class FieldConstructor():
 
 def field(
         default_value=UndefinedField(), 
-        default_factory: Callable[[], Any] | Callable[[dict], Any] = None, 
-        aliases: list[str] = None):
+        default_factory: OP[Callable[[], Any] | Callable[[dict], Any]] = None, 
+        aliases: OP[list[str]] = None):
     return partial(FieldConstructor, default_value, default_factory, aliases)

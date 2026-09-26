@@ -1,7 +1,7 @@
 from functools import wraps
 from pathlib import Path
 from types import GenericAlias
-from typing import get_type_hints
+from typing import Optional, get_type_hints
 
 from dotenv import load_dotenv
 
@@ -25,8 +25,8 @@ def _find_env():
 
 
 class ClassWrapper:
-    __wrapped_cls__: type = None
-    __hints__: dict = None
+    __wrapped_cls__: Optional[type] = None
+    __hints__: Optional[dict] = None
 
     @property
     def as_dict(self):

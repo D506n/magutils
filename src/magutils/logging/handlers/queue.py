@@ -10,7 +10,7 @@ from .basic import BaseAsyncHandler
 class RawQueueHandler(QueueHandler, BaseAsyncHandler):
     def __init__(self, queue):
         super().__init__(queue)
-        self.queue: Queue
+        self.queue: Queue  # type: ignore[assignment]
 
     def emit(self, record):
         if e := self.extract_exception(record):

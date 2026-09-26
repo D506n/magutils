@@ -3,7 +3,7 @@ from datetime import datetime
 from functools import cached_property, lru_cache
 from pathlib import Path
 from threading import Lock
-from typing import Callable, Literal, TextIO
+from typing import Callable, Literal, Optional, TextIO, cast
 from warnings import warn
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -27,21 +27,21 @@ def zip_compressor(file_path: Path, data: TextIO):
 
 class LogFile:
     def __init__(self, 
-            path: Path = None, 
+            path: Optional[Path] = None, 
             on_expire: EXP = 'delete', 
             compressor: COMPRESSOR = zip_compressor, 
             rotation_by_dt: bool = False,
-            current_log_dt: datetime = None,
+            current_log_dt: Optional[datetime] = None,
             max_bytes: int = 0,
             buffer_size: int = 500,
             encoding: str = ENCODING,
-            stream: TextIO = None
+            stream: Optional[TextIO] = None
     ):
         self.mode: Literal['file', 'stream'] = 'file'
-        self._path: Path = None
-        self.stream: TextIO = None
+        self._path: Optional[Path] = None
+        self.stream: Optional[TextIO] = None
         self.on_expire = on_expire
-        self.exp_act: Callable[[], None] = None
+        self.exp_act: Optional[Callable[[], None]] = None
         if stream:
             self.__init_stream(stream)
         elif path:
@@ -134,15 +134,16 @@ class LogFile:
             if 'b' in mode:
                 fparams.pop('encoding', None)
             try:
-                self.stream.close()
+                if self.stream:
+                    self.stream.close()
             except Exception:  # nosec B110
                 pass
             try:
-                self.stream = open(mode=mode, **fparams)
+                self.stream = cast(TextIO, open(mode=mode, **fparams))
             except FileNotFoundError:  # nocov
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 self.path.touch(exist_ok=True)
-                self.stream = open(mode=mode, **fparams)
+                self.stream = cast(TextIO, open(mode=mode, **fparams))
             # при других ошибках пусть падает, быстрее отловлю
         return self.stream
 
@@ -182,27 +183,27 @@ class LogFile:
 
 
 class AsyncFileHandler(BaseAsyncHandler):
-    def __init__(self, 
-                 file_path: Path | str, 
-                 max_bytes: int = None, 
-                 rotation_by_dt: bool = False, 
-                 on_expire: EXP = 'delete', 
-                 compressor: COMPRESSOR = None, 
-                 buffer_size: int = 500, 
-                 file: LogFile = None,
+    def __init__(self,
+                 file_path: Path | str,
+                 max_bytes: Optional[int] = None,
+                 rotation_by_dt: bool = False,
+                 on_expire: EXP = 'delete',
+                 compressor: Optional[COMPRESSOR] = None,
+                 buffer_size: int = 500,
+                 file: Optional[LogFile] = None,
                  *args, **kwargs):
         _file_path = file_path if isinstance(file_path, Path)\
             else Path(file_path)
         super().__init__(*args, **kwargs)
-        self.delayed_flush: asyncio.Task = None
+        self.delayed_flush: Optional[asyncio.Task] = None
         self.alock = asyncio.Lock()
         self.file = file or LogFile(
-            _file_path, 
-            on_expire, 
-            compressor, 
-            rotation_by_dt, 
-            get_current_time(), 
-            max_bytes,
+            _file_path,
+            on_expire,
+            compressor or zip_compressor,
+            rotation_by_dt,
+            get_current_time(),
+            max_bytes or 0,
             buffer_size
         )
 

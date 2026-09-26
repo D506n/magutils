@@ -2,6 +2,7 @@ from copy import copy
 from datetime import datetime
 from logging import Formatter, LogRecord
 from traceback import extract_tb
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from ...time_utils import format_time, get_tz
@@ -16,7 +17,7 @@ class BaseFormatter(Formatter):
                  validate=True, 
                  *, 
                  defaults=None,
-                 tz: ZoneInfo = None):
+                 tz: Optional[ZoneInfo] = None):
         self.tz = tz or get_tz()
         super().__init__(fmt, datefmt, style, validate, defaults=defaults)
 

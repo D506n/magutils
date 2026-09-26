@@ -173,11 +173,12 @@ class IndexSet(IndexAccess):
         return 0
 
     def __call__(self, ctx: Ctx):
-        if 0 < ctx.key < len(ctx.data):
-            ctx.data[ctx.key] = ctx.value
-        else:
-            ctx.data.append(ctx.value)
-        self.next_step(ctx)
+        if isinstance(ctx.data, list):
+            if 0 < ctx.key < len(ctx.data):
+                ctx.data[ctx.key] = ctx.value
+            else:
+                ctx.data.append(ctx.value)
+            self.next_step(ctx)
 
 
 class WildcardState(State):

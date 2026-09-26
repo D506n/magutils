@@ -2,7 +2,7 @@ import re
 from collections.abc import Mapping
 from copy import deepcopy
 from functools import lru_cache
-from typing import Any, overload
+from typing import Any
 
 from .data_to_path import data_to_paths
 from .intent import Del, Get, Set
@@ -17,27 +17,23 @@ def get_by_path(
         item_type=type[dict], 
         default=None, 
         silent=True):
-    walker = Walker[list[item_type]].make(path, Get)
+    walker: Walker[Any] = Walker[list[item_type]].make(path, Get)
     result = walker.walk(data, default=default, silent=silent)
     return result.result
 
 
 def set_by_path(path: str, data: dict | list, value: Any, silent=True):
-    walker = Walker.make(path, Set)
+    walker: Walker[Any] = Walker.make(path, Set)
     walker.walk(data, value, silent=silent)
 
 
 def del_by_path(path: str, data: dict | list, silent=True):
-    walker = Walker.make(path, Del)
+    walker: Walker[Any] = Walker.make(path, Del)
     walker.walk(data, silent=silent)
 
 
-@overload
-def make_reb_paths(*paths: str) -> tuple[list[Walker], list[str]]: ...
-
-
 @lru_cache(1000)
-def make_reb_paths(*paths: str):
+def make_reb_paths(*paths: str) -> tuple[list[str], list[str]]:
     from_paths = []
     to_paths = []
     for path in paths:
@@ -55,12 +51,13 @@ def make_reb_paths(*paths: str):
 
 def rebuild(*paths: str, data: dict | list, silent=True):
     from_paths, to_paths = make_reb_paths(*paths)
-    from_walkers = [Walker.make(fp, Get) for fp in from_paths]
-    result = []
+    from_walkers: list[Walker[Any]] = [
+        Walker.make(fp, Get) for fp in from_paths]
+    result: Any = []
     for fwalker, tpath in zip(from_walkers, to_paths):
         temp = fwalker.walk(data, silent=silent)
         if len(result) < len(temp.result):
-            twalker = Walker.make(tpath, Set)
+            twalker: Walker[Any] = Walker.make(tpath, Set)
             start_from_append = twalker.path[0] == '!a'
             if len(twalker.path) > 1 and not start_from_append:
                 result = [twalker.template() for _ in range(len(temp.result))]
@@ -68,11 +65,11 @@ def rebuild(*paths: str, data: dict | list, silent=True):
                 result = []
             else:
                 result = {}
-        twalkers = [
+        twalkers: list[Walker[Any]] = [
             Walker.make(
-                tpath.replace('*', '{i}').format(i=idx), Set) 
+                tpath.replace('*', '{i}').format(i=idx), Set)
                     for idx in range(len(temp.result))]
-        res = result
+        res: Any = result
         if len(twalkers) == 1 and not tpath.startswith('*')\
                 and len(res) > 0 and isinstance(res, list):
             res = res[0]
@@ -81,7 +78,7 @@ def rebuild(*paths: str, data: dict | list, silent=True):
     return result
 
 
-def __deepmerge(old: dict, new: dict):
+def __deepmerge(old: dict[Any, Any], new: Mapping[Any, Any]) -> dict[Any, Any]:
     for k, v in new.items():
         if isinstance(v, Mapping):
             old[k] = __deepmerge(old.get(k, {}), v)

@@ -76,13 +76,21 @@ class Walker[T]():
                 raise StopWalk()
 
     @classmethod
-    def make(cls, path: str, intent: type[Intent], item_type: T = type[dict]):
+    def make(
+        cls,
+        path: str,
+        intent: type[Intent],
+        item_type: type | None = None,
+    ) -> Self:
+        if not item_type:
+            item_type = dict
         key = (path, intent, item_type,)
         if key in cls.__cache:
             return cls.__cache[key]
         else:
-            cls.__cache[key] = cls[list[item_type]](path, intent)
-            return cls.__cache[key]
+            walker = cls(path, intent)
+            cls.__cache[key] = walker
+            return walker
 
     @property
     def template(self):

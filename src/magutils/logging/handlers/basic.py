@@ -71,7 +71,9 @@ class BaseAsyncHandler(Handler):
         result = None
         if isinstance(record.msg, Exception):
             result = record.msg
-        elif len(record.args) == 1 and isinstance(record.args[0], Exception):
+        elif isinstance(record.args, tuple) \
+                and len(record.args) == 1 \
+                and isinstance(record.args[0], Exception):
             result = record.args[0]
         return result
 

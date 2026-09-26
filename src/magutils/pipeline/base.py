@@ -8,6 +8,7 @@ from typing import (
     Awaitable,
     Callable,
     Generator,
+    Optional,
     Protocol,
     Self,
     TypeVar,
@@ -154,7 +155,7 @@ def step(order: int) -> PipelineStep:  # noqa: C901
 
         wrap: PipelineStep = select_wrap(func)
 
-        wrap._step_order = order
+        setattr(wrap, '_step_order', order)
         return wrap
     return decorator
 
@@ -170,11 +171,13 @@ class PipeCTXFactory(Protocol):
 
 
 class Pipeline[T](metaclass=PipelineMeta):
+    _steps: StepsType = []
+
     def __init__(self, ctx_factory: PipeCTXFactory = PipeCTX, **kwargs):
         super().__init__()
-        self.result: T = None
+        self.result: T | None = None
         self.step_num = 0
-        self.step_name: str = None
+        self.step_name: Optional[str] = None
         self.ctx = ctx_factory(**kwargs)
 
     async def last_step(self):

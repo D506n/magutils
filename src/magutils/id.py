@@ -1,5 +1,6 @@
 from functools import lru_cache
 from string import ascii_letters, digits
+from typing import Optional
 
 import fastnanoid as nanoid
 
@@ -44,7 +45,7 @@ class Config(metaclass=ConfigMeta):
     pass
 
 
-def gen_id(alphabet: str = None, size: int = None):
+def gen_id(alphabet: Optional[str] = None, size: Optional[int] = None):
     if size is not None and size < 5:
         raise ValueError('The id size cannot be shorter than 5 characters.')
     if alphabet is not None and len(alphabet) < 10:

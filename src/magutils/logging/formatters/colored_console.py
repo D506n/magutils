@@ -1,7 +1,7 @@
 import copy
 from functools import lru_cache, partial
 from logging import LogRecord
-from typing import Callable
+from typing import Callable, Optional, cast
 from warnings import warn
 from zoneinfo import ZoneInfo
 
@@ -19,7 +19,7 @@ class ColoredConsoleFormatter(BaseFormatter):
                  use_cache=True, 
                  custom_colors=None, 
                  no_cut=False,
-                 tz: ZoneInfo = None):
+                 tz: Optional[ZoneInfo] = None):
         super().__init__(fmt, datefmt, tz=tz)
         self.default_time_format = (DEF.TIME if not datefmt else datefmt)
         self.default_msec_format = DEF.MSEC
@@ -27,11 +27,16 @@ class ColoredConsoleFormatter(BaseFormatter):
         self.colors = DEF.COLORS
         self.no_cut = no_cut
         if isinstance(custom_colors, dict):
-            deepmerge(self.colors, custom_colors, False)
-        if self.use_cache:
-            self.get_level_color = lru_cache()(self.get_level_color)
-            self.align_substring = lru_cache()(self.align_substring)
-            self.color_substring = lru_cache()(self.color_substring)
+            deepmerge(cast(dict, self.colors), custom_colors, False)
+        color_substring = self.color_substring
+        align_substring = self.align_substring
+        get_level_color = self.get_level_color
+        self._color_substring = (
+            lru_cache()(color_substring) if self.use_cache else color_substring)
+        self._align_substring = (
+            lru_cache()(align_substring) if self.use_cache else align_substring)
+        self._get_level_color = (
+            lru_cache()(get_level_color) if self.use_cache else get_level_color)
         self.fields_mapping = self.parse_format(fmt)
         self.skip_fields = {'asctime', 'message'}
 
@@ -57,10 +62,10 @@ class ColoredConsoleFormatter(BaseFormatter):
             width = 0 if not width else int(width)
             result[var] = (
                 partial(
-                    self.color_substring, 
-                    color=self.colors.get(var, Fore.RESET)), 
+                    self._color_substring,
+                    color=self.colors.get(var, Fore.RESET)),
                 partial(
-                    self.align_substring, 
+                    self._align_substring,
                     string_width=width))
         return result
 
@@ -71,7 +76,7 @@ class ColoredConsoleFormatter(BaseFormatter):
                 if var == 'levelname':
                     level = record.levelname
                     record.levelname = align_func(record.levelname)
-                    record.levelname = (self.get_level_color(level) + 
+                    record.levelname = (self._get_level_color(level) +
                                                         record.levelname + 
                                                         Fore.RESET)
                     continue

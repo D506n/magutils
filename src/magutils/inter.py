@@ -1,6 +1,6 @@
 from logging import getLogger
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import orjson
 import yaml
@@ -22,9 +22,9 @@ class _I18n:
 
     def __init__(self, 
                         locdir: Path | str = '',
-                        custom_validators: list[TVALIDATOR] = None,
+                        custom_validators: Optional[list[TVALIDATOR]] = None,
                         scan_ttl: float = 60.0,
-                        plural_rules_path: Path = None):
+                        plural_rules_path: Optional[Path] = None):
         if not locdir:
             raise ValueError("Locdir must be provided for first call!")
         if not isinstance(locdir, Path):
@@ -135,7 +135,6 @@ class _I18n:
             return text_obj.format(**kwargs)
 
         if isinstance(text_obj, dict):
-            text_obj: dict[str, str]
             count_key = self.pluralizers[lang](kwargs.get('count', 1))
             err_text += f'[{kwargs.get("count", "")}:{count_key or ""}]'
 
@@ -145,8 +144,8 @@ class _I18n:
 
     def t(self, 
             key: str, 
-            lang: str = None, 
-            fallback: str = None, 
+            lang: Optional[str] = None, 
+            fallback: Optional[str] = None, 
             strict: bool = False, 
             **kwargs):
         if lang is None:
@@ -175,8 +174,8 @@ class I18n(_I18n):
 
 def text(
         key: str, 
-        lang: str = None, 
-        fallback: str = None, 
+        lang: Optional[str] = None, 
+        fallback: Optional[str] = None, 
         strict: bool = False, 
         **kwargs
 ) -> str:

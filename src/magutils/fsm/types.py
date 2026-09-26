@@ -59,7 +59,7 @@ class TransitionEvent[T]():
 
 class ModelPacked(TypedDict):
     path: str | None
-    data: str | None
+    data: dict | None
 
 
 class PackedTransition(TypedDict):

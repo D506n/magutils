@@ -1,5 +1,7 @@
+from collections.abc import Mapping
 from logging import LogRecord
 from traceback import extract_tb
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 import orjson
@@ -16,8 +18,8 @@ class JsonFormatter(BaseFormatter):
                  datefmt=None, 
                  use_cahce=True, 
                  decode=True,
-                 tz: ZoneInfo = None,
-                 dump_flags: int = None):
+                 tz: Optional[ZoneInfo] = None,
+                 dump_flags: Optional[int] = None):
         super().__init__(fmt, datefmt, tz=tz)
         self.default_time_format = (DEF.TIME if not datefmt else datefmt)
         self.default_msec_format = DEF.MSEC
@@ -29,9 +31,9 @@ class JsonFormatter(BaseFormatter):
     def parse_format(self, format_string) -> list[str]:
         return [f[0] for f in DEF.FORMAT_PARSE_REG.findall(format_string)]
 
-    def _serialize_args(self, args: tuple):
+    def _serialize_args(self, args: tuple | Mapping[str, object] | None):
         result = []
-        for arg in args:
+        for arg in args or ():
             if type(arg) not in SERIALIZABLE:
                 arg = str(arg)
             result.append(arg)

@@ -1,7 +1,7 @@
 import copy
 from functools import lru_cache, partial
 from logging import LogRecord
-from typing import Callable
+from typing import Callable, Optional
 from warnings import warn
 from zoneinfo import ZoneInfo
 
@@ -15,14 +15,15 @@ class MonocolorFormatter(BaseFormatter):
                  datefmt=None, 
                  use_cahce=True, 
                  no_cut=False, 
-                 tz: ZoneInfo = None):
+                 tz: Optional[ZoneInfo] = None):
         super().__init__(fmt, datefmt, tz=tz)
         self.default_time_format = (DEF.TIME if not datefmt else datefmt)
         self.default_msec_format = DEF.MSEC
         self.use_cache = use_cahce
         self.no_cut = no_cut
-        if self.use_cache:
-            self.align_substring = lru_cache()(self.align_substring)
+        align_substring = self.align_substring
+        self._align_substring = (
+            lru_cache()(align_substring) if self.use_cache else align_substring)
         self.fields_mapping = self.parse_format(fmt)
         self.skip_fields = {'asctime', 'message'}
 
@@ -38,7 +39,7 @@ class MonocolorFormatter(BaseFormatter):
         result: dict[str, tuple[Callable, Callable]] = {}
         for var, width in variables:
             width = 0 if not width else int(width)
-            result[var] = partial(self.align_substring, string_width=width)
+            result[var] = partial(self._align_substring, string_width=width)
         return result
 
     def format(self, record: LogRecord):

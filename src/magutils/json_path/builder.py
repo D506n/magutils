@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import overload
 
-from .intent import Del, Get, Set
+from .intent import Del, Get, Intent, Set
 from .states import (
     DelState,
     IndexAccess,
@@ -34,7 +34,7 @@ def build_path(path: str) -> list[str | int]: ...
 
 @lru_cache(1000)
 def build_path(path: str) -> list[str | int]:
-    parts = []
+    parts: list[str | int] = []
     for p in path.split('.'):
         if not p:
             raise ValueError(f'Invalid path: {path}')
@@ -46,11 +46,12 @@ def build_path(path: str) -> list[str | int]:
 
 
 @overload
-def build_states(path: list[str | int], intent: Get | Set | Del) -> list[list[State]]: ...  #noqa
-
+def build_states(path: list[str | int], intent: type[Get | Set | Del]) -> list[list[State]]: ...  #noqa
+@overload
+def build_states(path: tuple[str | int, ...], intent: type[Intent]): ...
 
 @lru_cache(1000)
-def build_states(path: list[str | int], intent: Get | Set | Del):
+def build_states(path: list[str | int], intent: type[Get | Set | Del]):
     states: list[list[State]] = []
     for i in range(len(path)):
         stage = [st for st in STATES if st.compile_check(path, i, intent)]

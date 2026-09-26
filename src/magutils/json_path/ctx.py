@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 if TYPE_CHECKING:
     from .intent import Intent
@@ -16,10 +16,10 @@ class StopWalk(Exception):
 class Ctx[T]():
     data: dict | list = field()
     path: list[str | int] = field()
-    intent: 'Intent' = field()
+    intent: 'type[Intent]' = field()
     pos: int = field(default=0)
-    full_data: dict | list = field(default=None)
-    parent: dict | list = field(default=None)
+    full_data: Optional[dict | list] = field(default=None)
+    parent: Optional[dict | list] = field(default=None)
     val: Any = field(default=None)
     default: Any = field(default=None)
     result: T | list[dict] = field(default_factory=list)

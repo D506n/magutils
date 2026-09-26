@@ -1,10 +1,10 @@
 import sys
 from asyncio import Lock
 from logging import getLogger
-from typing import Literal, Self, TypedDict
+from typing import Literal, Optional, Self, TypedDict, cast
 
 import orjson
-from httpx import AsyncClient, Response
+from httpx import URL, AsyncClient, Response
 
 from .helpers import QHookRunner
 
@@ -57,7 +57,7 @@ class ROProxy:
         return getattr(self.__obj, f'_{name}', None)
 
     def dump(self, with_curl=False) -> DumpResult:
-        result = {
+        result: DumpResult = {
             "method": self.method,
             "base_url": self.base_url,
             "url": self.url,
@@ -90,23 +90,23 @@ class ROProxy:
 
 
 class FluentReq:
-    def __init__(self, base_url: str = None):
-        self.__method: METHODS = None
-        self._base_url: str = base_url
+    def __init__(self, base_url: Optional[str] = None):
+        self.__method: Optional[METHODS] = None
+        self._base_url: Optional[str] = base_url
         self._url: str = ''
         self._params: dict[str, str] = {}
         self._headers: dict[str, str] = {
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        self._cookies: dict[str, str] = None
+        self._cookies: Optional[dict[str, str]] = None
         self._body: dict = {}
         self._retries: int = 3
         self._before_scripts: list[str] = []
         self._after_scripts: list[str] = []
         self.__ro = ROProxy(self)
         self._before_scripts_done = False
-        self._serialized_body: bytes = None
+        self._serialized_body: Optional[bytes] = None
         self.__lock = Lock()
 
     @property
@@ -177,7 +177,7 @@ class FluentReq:
             script, self._params, self._headers, self._body)
 
     async def __exec_afterscripts(self, resp: Response):
-        params = {}
+        params: dict[str, str] = {}
         try:
             body = orjson.loads(resp.content)
         except orjson.JSONDecodeError:
@@ -185,7 +185,7 @@ class FluentReq:
             return resp
         for script in self._after_scripts:
             params, resp.headers, body = await QHookRunner.run(
-                script, params, resp.headers, body
+                script, params, dict(resp.headers), body
             )
         resp._content = orjson.dumps(body)
         return resp
@@ -223,9 +223,10 @@ class FluentReq:
         else:
             return response
 
-    async def execute(self, client: AsyncClient = None):
+    async def execute(self, client: Optional[AsyncClient] = None):
         if not client:
-            async with AsyncClient(base_url=self._base_url) as client:
+            async with AsyncClient(
+                    base_url=cast(URL | str, self._base_url)) as client:
                 return await self.__execute(client)
         return await self.__execute(client)
 

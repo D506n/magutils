@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Self
+from typing import Optional, Self
 
 from pydantic import BaseModel
 
@@ -10,19 +10,19 @@ logger = getLogger(__name__)
 
 
 class State():
-    def __init__(self, 
-            name: str, 
-            start: bool = False, 
+    def __init__(self,
+            name: str,
+            start: bool = False,
             final: bool = False):
-        self._parents: set[Self] = {}
+        self._parents: set[Self] = set()
         self.name = name
         self.start = start
         self.final = final
         if start and final:
             raise StateError('State cannot be both start and final')
-        self.enter_callback: StateCallbackType = None
-        self.progress_callback: StateCallbackType = None
-        self.exit_callback: StateCallbackType = None
+        self.enter_callback: Optional[StateCallbackType] = None
+        self.progress_callback: Optional[StateCallbackType] = None
+        self.exit_callback: Optional[StateCallbackType] = None
 
     def on_enter(self, callback: StateCallbackType):
         self.enter_callback = callback
@@ -52,7 +52,7 @@ class State():
                 cb = self.progress_callback
             case _:
                 raise StateError(f'Unknown callback type: {typ}')
-        if cb:
+        if cb is not None:
             try:
                 await cb(StateEvent(typ, self, model))
             except Exception as e:

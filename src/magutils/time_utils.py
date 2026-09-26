@@ -4,7 +4,9 @@ import zoneinfo
 from datetime import datetime, timedelta
 from functools import lru_cache, wraps
 from inspect import iscoroutinefunction
-from typing import Callable, overload
+from typing import Callable, Optional, overload
+
+DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
 
 @overload
@@ -21,30 +23,29 @@ def get_current_time():
 
 
 @overload
-def parse_time(time_str: str, format_str: str = None) -> datetime: ...  # noqa: F811 перегрузка для типизации
+def parse_time(time_str: str, format_str: Optional[str] = None) -> datetime: ...  # noqa: F811 перегрузка для типизации
 
 
 @lru_cache()
-def parse_time(time_str: str, format_str: str = None):
+def parse_time(time_str: str, format_str: Optional[str] = None):
     return datetime.strptime(
         time_str,
-        format_str or os.getenv("TIME_FORMAT", "%Y-%m-%dT%H:%M:%S.%f%z"),
+        format_str or os.getenv("TIME_FORMAT") or DEFAULT_TIME_FORMAT,
     )
 
 
 @overload
-def format_time(time_obj: datetime, format_str: str = None) -> str: ...  # noqa: F811 перегрузка для типизации
+def format_time(time_obj: datetime, format_str: Optional[str] = None) -> str: 
+    ...  # noqa: F811 перегрузка для типизации
 
 
 @lru_cache()
-def format_time(time_obj: datetime, format_str: str = None):
-    format_str = format_str or os.getenv(
-        "TIME_FORMAT", "%Y-%m-%dT%H:%M:%S.%f%z"
-    )
+def format_time(time_obj: datetime, format_str: Optional[str] = None):
+    format_str = format_str or os.getenv("TIME_FORMAT") or DEFAULT_TIME_FORMAT
     return time_obj.strftime(format_str)
 
 
-def get_delta(dt: datetime, dt2: datetime = None):
+def get_delta(dt: datetime, dt2: Optional[datetime] = None):
     if dt2 is None:
         dt2 = get_current_time()
     return dt2 - dt

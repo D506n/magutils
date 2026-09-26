@@ -4,7 +4,7 @@ import hmac
 import os
 import time
 from logging import getLogger
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 import orjson
 
@@ -19,9 +19,9 @@ class DecodeResult(TypedDict):
 
 class ConfigMeta(type):
     _default_header = {"alg": "HS256", "typ": "JWT"}
-    _precomp_header: str = None
-    _hmac: hmac.HMAC = None
-    _secret: str = None
+    _precomp_header: Optional[str] = None
+    _hmac: Optional[hmac.HMAC] = None
+    _secret: Optional[str] = None
 
     @property
     def secret(self):
@@ -67,7 +67,10 @@ class Config(metaclass=ConfigMeta):
     pass
 
 
-def jwt_encode(payload: dict, secret: str = None, headers: dict = None) -> str:
+def jwt_encode(
+        payload: dict, 
+        secret: Optional[str] = None, 
+        headers: Optional[dict] = None) -> str:
     if not secret:
         secret = Config.secret
     if headers:
@@ -85,7 +88,7 @@ def jwt_encode(payload: dict, secret: str = None, headers: dict = None) -> str:
     return f"{h}.{p}.{s}"
 
 
-def jwt_decode(token: str, secret: str = None) -> DecodeResult:
+def jwt_decode(token: str, secret: Optional[str] = None) -> DecodeResult:
     if not secret:
         secret = Config.secret
     try:
@@ -98,11 +101,11 @@ def jwt_decode(token: str, secret: str = None) -> DecodeResult:
         if not hmac.compare_digest(computed_sig, expected_sig):
             raise ValueError("invalid signature")
         curr = time.time()
-        payload = orjson.loads(base64.urlsafe_b64decode(p + '=='))
-        headers = orjson.loads(base64.urlsafe_b64decode(h + '=='))
+        payload: dict = orjson.loads(base64.urlsafe_b64decode(p + '=='))
+        headers: dict = orjson.loads(base64.urlsafe_b64decode(h + '=='))
         if payload.get("exp", curr) < curr:
             raise ValueError("expired")
-        result = {
+        result: DecodeResult = {
             'headers': headers, 'payload': payload, 'signature': expected_sig}
         return result
     except Exception as e:

@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager as actx
-from typing import Self
+from typing import Optional, Self
 
 from aiolimiter import AsyncLimiter
 
 
 class Limiter():
-    __inst: Self = None
+    __inst: Optional[Self] = None
 
     def __init__(self):
         self.limiters: dict[str, AsyncLimiter] = {}

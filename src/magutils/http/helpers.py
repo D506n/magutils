@@ -1,5 +1,6 @@
 from functools import partial
 from logging import getLogger
+from typing import Optional
 
 from ..star.starlark import BaseCTX, Runner
 
@@ -34,7 +35,7 @@ class HookCtx(BaseCTX):
 
 
 class QHookRunner(Runner):
-    def __init__(self, size=5, storage: Storage = None, **kwargs):
+    def __init__(self, size=5, storage: Optional[Storage] = None, **kwargs):
         wrapper = self.build_wrapper(HOOK_WRAPPER)
         self.storage = storage or Storage()
         super().__init__(size, wrapper, partial(HookCtx, self.storage))
@@ -43,11 +44,11 @@ class QHookRunner(Runner):
         return self.wrap_template.format(script=user_script)
 
     @classmethod
-    async def run(cls, 
-                  script: str, 
-                  params: dict, 
-                  headers: dict, 
-                  body: dict, 
+    async def run(cls,  # type: ignore[override]
+                  script: str,
+                  params: dict,
+                  headers: dict,
+                  body: dict,
                   **kwargs):
         if not kwargs.get('wrapper'):
             kwargs['wrapper'] = HOOK_WRAPPER

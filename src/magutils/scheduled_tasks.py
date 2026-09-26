@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from functools import lru_cache
 from logging import getLogger
-from typing import Callable, Coroutine, TypeVar, overload
+from typing import Any, Callable, Coroutine, Optional, TypeVar, overload
 
 import cron_parser_py as cron
 
@@ -17,7 +17,7 @@ logger = getLogger(__name__)
 
 
 class ScheduledTask[T, ET]:
-    def __init__(self, expr: str, payload: T, id: str = None):
+    def __init__(self, expr: str, payload: T, id: Optional[str] = None):
         self.raw_expr = expr
         self.executions = 0
         self.expr = self.parse_expr(self.raw_expr)
@@ -72,7 +72,7 @@ class ScheduledTask[T, ET]:
     @overload
     def emit(self, payload: T): ...
 
-    def emit(self, payload: T = None):
+    def emit(self, payload: Optional[T] = None):
         '''Запускает выполнение задачи, вызывая всех подписчиков.
         
         Создаёт фоновые задачи для каждого коллбэка.
@@ -201,12 +201,12 @@ classes: list[type[ScheduledTask]] = [OneTimeTask, CronTask]
 class Scheduler():
     def __init__(self):
         self.tasks: dict[str, ScheduledTask] = {}
-        self.sched_que: aio.Queue[str] = aio.Queue()
+        self.sched_que: aio.Queue[Any] = aio.Queue()
         self.alive = True
         self.main_task: aio.Task = None
         self.shutdown_marker = object()
 
-    def add_task(self, expr: str, payload, id: str = None):
+    def add_task(self, expr: str, payload, id: Optional[str] = None):
         '''Создаёт задачу из выражения.
         Форматы:
             'YYYY-MM-DD HH:MM' - одноразовая задача

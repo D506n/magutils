@@ -4,7 +4,7 @@ import textwrap
 import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from typing import Callable, Self, TypeVar
+from typing import Any, Callable, Optional, Self, TypeVar
 
 try:
     import starlark as sl
@@ -60,6 +60,7 @@ class StarResult[ResultType]():
     @property
     def result(self) -> ResultType:
         if self.success:
+            assert self._res is not None
             return self._res
         else:
             raise self.error
@@ -118,11 +119,11 @@ class BaseCTX():
 
 
 class Runner:
-    __inst: dict[str, Self] = {}
+    __inst: dict[str | None, Self] = {}
 
     def __init__(self, 
                  size: int = 5, 
-                 wrapper: str = None,
+                 wrapper: Optional[str] = None,
                  ctx_factory: Callable[[], BaseCTX] = BaseCTX):
         self.ctxs: aio.Queue[BaseCTX] = aio.Queue()
         for _ in range(size):
@@ -132,7 +133,7 @@ class Runner:
         self.__class__.__inst[wrapper] = self
 
     @classmethod
-    def build_wrapper(cls, wrapper: str = None, **kwargs):
+    def build_wrapper(cls, wrapper: Optional[str] = None, **kwargs):
         if not wrapper:
             wrapper = DEFAULT_WRAPPER
         if 'setup' not in kwargs:
@@ -143,7 +144,7 @@ class Runner:
         return '{script}'.join(parts)
 
     @asynccontextmanager
-    async def get_ctx(self, add_ctx: dict = None):
+    async def get_ctx(self, add_ctx: Optional[dict] = None):
         ctx = await self.ctxs.get()
         if add_ctx:
             for key, val in add_ctx.items():
@@ -164,12 +165,12 @@ class Runner:
     def parse(self, script) -> sl.AstModule:
         return sl.parse('main.star', script)
 
-    async def _run(self, 
-                   script, 
-                   data, 
-                   add_ctx: dict = None):
+    async def _run(self,
+                   script,
+                   data,
+                   add_ctx: Optional[dict] = None):
         wrapped_script = self.wrap_script(script)
-        res = StarResult()
+        res: StarResult[Any] = StarResult()
         async with self.get_ctx(add_ctx) as ctx:
             globs = ctx.globs
             mod = ctx.mod
@@ -185,7 +186,7 @@ class Runner:
             return res
 
     @classmethod
-    def inst(cls, wrapper: str = None):
+    def inst(cls, wrapper: Optional[str] = None):
         if wrapper not in cls.__inst.keys():
             cls(wrapper=wrapper)
         return cls.__inst[wrapper]
@@ -194,8 +195,8 @@ class Runner:
     async def run(cls, 
                   script: str, 
                   data, 
-                  wrapper: str = None,
-                  add_ctx: dict = None, 
+                  wrapper: Optional[str] = None,
+                  add_ctx: Optional[dict] = None, 
                   **kwargs) -> StarResult:
         if 'setup' not in kwargs:
             kwargs['setup'] = DEFAULT_SETUP

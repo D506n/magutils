@@ -1,18 +1,20 @@
 import asyncio
 import sys
 from logging import LogRecord
-from typing import TextIO
+from typing import Optional, TextIO
 
 from ...id import gen_id
 from .basic import BaseAsyncHandler
 
 
 class AsyncConsoleHandler(BaseAsyncHandler):
-    def __init__(self, buffer_size: int = 500, stdout: TextIO = None, *a, **kw):
+    def __init__(self, 
+            buffer_size: int = 500, 
+            stdout: Optional[TextIO] = None, *a, **kw):
         super().__init__(*a, **kw)
         self.buffer: list[str] = []
         self.buffer_size = buffer_size
-        self.delayed_flush: asyncio.Task = None
+        self.delayed_flush: Optional[asyncio.Task] = None
         self.alock = asyncio.Lock()
         self.stdout = stdout or sys.stdout
 

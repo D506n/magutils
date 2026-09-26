@@ -2,7 +2,7 @@ import importlib
 from asyncio import Event, Lock
 from functools import lru_cache
 from logging import getLogger
-from typing import TypeVar
+from typing import Optional, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -26,15 +26,15 @@ MODELS_CACHE: dict[str, BaseModel] = {}
 
 
 class StateGroup[T]():
-    start_callback: GroupCallbackType = None
-    finish_callback: GroupCallbackType = None
-    transition_callback: TransitionCallbackType = None
+    start_callback: Optional[GroupCallbackType] = None
+    finish_callback: Optional[GroupCallbackType] = None
+    transition_callback: Optional[TransitionCallbackType] = None
 
     def __init__(self, 
-                id: str = None,
-                current_state: str = None, 
+                id: Optional[str] = None,
+                current_state: Optional[str] = None, 
                 skip_init: bool = False, 
-                model: T = None):
+                model: Optional[T] = None):
         self.id = id or gen_id()
         self.start_state = self._validate_fsm()
         self.all_states = {st.name: st 
@@ -42,14 +42,17 @@ class StateGroup[T]():
                                     if isinstance(st, State)}
         if current_state and current_state not in self.all_states:
             raise StateError(f'Unknown state: {current_state}')
-        self.current_state = self.all_states.get(current_state)\
-            or self.start_state
+        if current_state:
+            self.current_state = self.all_states[current_state]
+        else:
+            self.current_state = self.start_state
         self.model = model
         self.lock = Lock()
         self.can_pack = Event()
         if not skip_init:
             self._emit_callback_nowait('Started')
-            self.current_state._emit_callback_nowait('EnterState', self.model)
+            self.current_state._emit_callback_nowait(
+                'EnterState', cast(BaseModel | None, self.model))
 
     async def _emit_callback(self, typ: group_etypes):
         match typ:
@@ -57,7 +60,7 @@ class StateGroup[T]():
                 cb = self.__class__.start_callback
             case 'Finished':
                 cb = self.__class__.finish_callback
-        if cb:
+        if cb is not None:
             await cb(GroupEvent(typ, self, self.model))
         self.can_pack.set()
 
@@ -67,7 +70,7 @@ class StateGroup[T]():
 
     async def _emit_transition(self, from_state: State, to_state: State):
         cb = self.__class__.transition_callback
-        if cb:
+        if cb is not None:
             await cb(TransitionEvent(self, from_state, to_state, self.model))
 
     @classmethod
@@ -124,10 +127,10 @@ class StateGroup[T]():
                     'ProgressState', self.model)
             else:
                 await self.current_state._emit_callback(
-                    'ExitState', self.model)
+                    'ExitState', cast(BaseModel | None, self.model))
                 self.current_state = self.all_states[state]
                 await self.current_state._emit_callback(
-                    'EnterState', self.model)
+                    'EnterState', cast(BaseModel | None, self.model))
                 if self.current_state.final:
                     await self._emit_callback('Finished')
         self.can_pack.set()
@@ -159,6 +162,7 @@ class StateGroup[T]():
             raise StateError(f'Invalid state group name: {pack["name"]}')
         else:
             pack.pop('name')
+        model: BaseModel | None = None
         if path := pack.get('model', {}).get('path'):
             data = pack.get('model').get('data')
             try:
@@ -169,9 +173,9 @@ class StateGroup[T]():
                     model = MODELS_CACHE[path]
                 else:
                     mod = importlib.import_module(module)
-                    model: BaseModel = getattr(mod, model_name)
+                    model = getattr(mod, model_name)
                     MODELS_CACHE[path] = model
-                pack['model'] = model.model_validate(data)
+                model = model.model_validate(data)
             except (ImportError, AttributeError, KeyError) as e:
                 if strict:
                     raise StateError(f"Failed to load model {path}: {e}") from e
@@ -179,7 +183,11 @@ class StateGroup[T]():
                     logger.warning(
                         "Failed to load model %r for %s: %s",
                         path, cls.__name__, e)
-        if not isinstance(pack['model'], BaseModel):
-            pack['model'] = None
-        pack['skip_init'] = True
-        return cls(**pack)
+        if not isinstance(model, BaseModel):
+            model = None
+        return cls(
+            id=pack.get('id'),
+            current_state=pack.get('current_state'),
+            skip_init=True,
+            model=cast(T | None, model),
+        )

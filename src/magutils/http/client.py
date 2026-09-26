@@ -1,3 +1,5 @@
+from typing import Optional
+
 from aiolimiter import AsyncLimiter
 from httpx import AsyncClient, Limits, Timeout
 
@@ -29,7 +31,7 @@ class LimitAwareClient(AsyncClient):
             transport=None, 
             trust_env=True, 
             default_encoding="utf-8",
-            limiter: AsyncLimiter = None):
+            limiter: Optional[AsyncLimiter] = None):
         super().__init__(
             auth=auth,
             params=params, 

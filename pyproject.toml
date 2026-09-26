@@ -34,6 +34,7 @@ dev = [
     "ruff>=0.15.13",
     "starlark-pyo3>=2026.1",
     "bandit>=1.9.4",
+    "mypy>=2.3.1",
 ]
 k8s = [
     "kubernetes>=35.0.0",
@@ -80,3 +81,7 @@ DEP004 = ["git", "kubernetes", "pathspec", "fastapi", "telegrinder"]
 [build-system]
 requires = ["uv_build>=0.7.11,<0.8.0"]
 build-backend = "uv_build"
+
+[tool.mypy]
+ignore_missing_imports = true
+disable_error_code = ["misc", "annotation-unchecked"]

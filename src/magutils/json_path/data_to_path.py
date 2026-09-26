@@ -1,10 +1,12 @@
-from typing import Any, Literal, Self
+from typing import Any, Literal, Optional, Self
 
 modes = Literal['wild', 'full', 'strict']
 
 
 class Path():
-    def __init__(self, key: str = None, parent: Self = None):
+    def __init__(self, 
+            key: Optional[str] = None, 
+            parent: Optional[Self] = None):
         self.parent = parent
         self.children: list[Self] = []
         self.key = key
@@ -14,7 +16,7 @@ class Path():
     def compile(self) -> list[str]:
         if not self.parent and not self.key and not self.children:
             return []
-        if not self.children:
+        if not self.children and isinstance(self.key, str):
             return [self.key]
         result = []
         for child in self.children:
@@ -55,7 +57,7 @@ def __add_layer(parent: Path, data: dict | list | Any, mode: modes):
         __add_list_layer(parent, data, mode)
 
 
-def data_to_paths(data: list[dict], mode: modes = 'wild'):
+def data_to_paths(data: dict | list[dict], mode: modes = 'wild'):
     result = Path()
     __add_layer(result, data, mode)
     return result.compile()
