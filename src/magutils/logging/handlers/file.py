@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 from functools import cached_property, lru_cache
+from logging import warning
 from pathlib import Path
 from threading import Lock
 from typing import Callable, Literal, Optional, TextIO, cast
@@ -136,8 +137,8 @@ class LogFile:
             try:
                 if self.stream:
                     self.stream.close()
-            except Exception:  # nosec B110
-                pass
+            except Exception:  # nocov nosec B110
+                warning(f'Error closing log file {self.path}')
             try:
                 self.stream = cast(TextIO, open(mode=mode, **fparams))
             except FileNotFoundError:  # nocov

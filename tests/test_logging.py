@@ -1,5 +1,6 @@
 from src.magutils.logging.formatters import MonocolorFormatter, ColoredConsoleFormatter, JsonFormatter
 from src.magutils.logging.formatters.base import BaseFormatter
+from src.magutils.logging.log_context import add_log_context, log_ctx
 from colorama import Fore
 import pytest
 from logging import getLogger, LogRecord
@@ -993,3 +994,163 @@ class TestZipCompressor:
         data.close()
         zip_files = sorted(tmp_path.glob('*.zip'))
         assert len(zip_files) == 2
+
+
+class TestLogContext:
+    def test_set_and_reset(self):
+        """Контекст устанавливается внутри блока и сбрасывается после."""
+        assert log_ctx.get() == {}
+        with add_log_context(id=1):
+            assert log_ctx.get() == {'id': 1}
+        assert log_ctx.get() == {}
+
+    def test_nested(self):
+        """Вложенный контекст перекрывает внешний, после выхода восстанавливается."""
+        with add_log_context(id=1):
+            with add_log_context(other='x'):
+                assert log_ctx.get() == {'other': 'x'}
+            assert log_ctx.get() == {'id': 1}
+
+    def test_multiple_keys(self):
+        """Несколько ключей попадают в контекст."""
+        with add_log_context(user=42, request='r1'):
+            assert log_ctx.get() == {'user': 42, 'request': 'r1'}
+
+    @pytest.mark.asyncio
+    async def test_isolated_between_parallel_tasks(self):
+        """Каждая параллельная asyncio-задача видит свой контекст."""
+        n = 10
+        seen = {}
+
+        async def worker(i):
+            with add_log_context(id=i):
+                await aio.sleep(0)
+                seen[i] = log_ctx.get().get('id')
+            # после выхода из блока контекст задачи пуст
+            assert log_ctx.get() == {}
+
+        await aio.gather(*[worker(i) for i in range(n)])
+        assert seen == {i: i for i in range(n)}
+
+
+class TestFormatterLogContext:
+    def test_format_with_ctx(self):
+        """Запись с log_ctx получает суффикс ctx в конце."""
+        fmt = MonocolorFormatter()
+        record = log_record()
+        record.log_ctx = {'id': 1}
+        result = fmt.format(record)
+        assert result.endswith('test test_arg1 | ctx: id = 1')
+
+    def test_format_base_formatter(self):
+        """BaseFormatter также выводит контекст из record."""
+        fmt = BaseFormatter()
+        record = log_record()
+        record.log_ctx = {'id': 5}
+        result = fmt.format(record)
+        assert result.endswith('test test_arg1 | ctx: id = 5')
+
+    def test_format_without_ctx(self):
+        """Без log_ctx суффикс ctx не добавляется."""
+        fmt = MonocolorFormatter()
+        record = log_record()
+        result = fmt.format(record)
+        assert 'ctx:' not in result
+
+    def test_format_trace_id_prefix(self):
+        """trace_id выносится в префикс и не дублируется в ctx."""
+        fmt = MonocolorFormatter()
+        record = log_record()
+        record.log_ctx = {'trace_id': 'abc123', 'id': 2}
+        result = fmt.format(record)
+        assert result.startswith('[trace_id: abc123]')
+        assert 'ctx: id = 2' in result
+        assert 'trace_id' not in result.split('ctx:')[1]
+
+    def test_format_only_trace_id(self):
+        """Если в контексте только trace_id, суффикс ctx не добавляется."""
+        fmt = MonocolorFormatter()
+        record = log_record()
+        record.log_ctx = {'trace_id': 'abc123'}
+        result = fmt.format(record)
+        assert result.startswith('[trace_id: abc123]')
+        assert 'ctx:' not in result
+
+    def test_format_json_with_ctx(self):
+        """JsonFormatter кладёт контекст в поле ctx."""
+        fmt = JsonFormatter()
+        record = log_record()
+        record.log_ctx = {'id': 1}
+        row = orjson.loads(fmt.format(record))
+        assert row['ctx'] == {'id': 1}
+
+    def test_format_json_without_ctx(self):
+        """JsonFormatter без контекста не добавляет поле ctx."""
+        fmt = JsonFormatter()
+        record = log_record()
+        row = orjson.loads(fmt.format(record))
+        assert 'ctx' not in row
+
+
+class TestHandlerLogContext:
+    def test_emit_captures_ctx(self):
+        """emit захватывает текущий контекст в record.log_ctx."""
+        with init_handler(BaseAsyncHandler) as handler:
+            with add_log_context(id=42):
+                record = log_record()
+                handler.emit(record)
+            assert getattr(record, 'log_ctx', None) == {'id': 42}
+
+    def test_emit_without_ctx(self):
+        """Без контекста атрибут log_ctx не устанавливается."""
+        token = log_ctx.set({})
+        try:
+            with init_handler(BaseAsyncHandler) as handler:
+                record = log_record()
+                handler.emit(record)
+                assert not hasattr(record, 'log_ctx')
+        finally:
+            log_ctx.reset(token)
+
+    def test_sync_chandle_with_ctx(self):
+        """Синхронный путь (close -> chandle) сохраняет контекст записи."""
+        stdout = StringIO()
+        with init_handler(AsyncConsoleHandler, buffer_size=500, stdout=stdout) as handler:
+            handler.setFormatter(MonocolorFormatter())
+            with add_log_context(id=7):
+                record = log_record({'msg': 'sync msg', 'args': tuple()})
+                handler.emit(record)
+        # close() в init_handler вызывает chandle для записей из очереди
+        content = stdout.getvalue()
+        assert 'sync msg' in content
+        assert 'ctx: id = 7' in content
+
+    @pytest.mark.asyncio
+    async def test_parallel_tasks_keep_own_ctx(self):
+        """Регрессия: параллельные задачи не должны разделять один контекст."""
+        stdout = StringIO()
+        with init_handler(AsyncConsoleHandler, buffer_size=500, stdout=stdout) as handler:
+            handler.setFormatter(MonocolorFormatter())
+            n = 10
+
+            async def worker(i):
+                with add_log_context(id=i):
+                    await aio.sleep(0)
+                    handler.emit(log_record({'msg': f'task {i}', 'args': tuple()}))
+
+            await aio.gather(*[worker(i) for i in range(n)])
+            # ждём, пока фоновая задача обработает всю очередь
+            for _ in range(50):
+                if handler.queue.qsize() == 0:
+                    break
+                await aio.sleep(0.01)
+            await aio.sleep(0.05)
+            await handler.aflush()
+
+            lines = stdout.getvalue().strip().split('\n')
+            assert len(lines) == n
+            for i in range(n):
+                assert any(
+                    f'task {i}' in line and f'ctx: id = {i}' in line
+                    for line in lines
+                )

@@ -2,7 +2,7 @@ from copy import copy
 from datetime import datetime
 from logging import Formatter, LogRecord
 from traceback import extract_tb
-from typing import Optional
+from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from ...time_utils import format_time, get_tz
@@ -39,3 +39,16 @@ class BaseFormatter(Formatter):
             newr.msg = (f'<{trace_id}>File: "{r.filename}", '
                                 f'line: {r.lineno}, in: {r.line}')
             yield self.format(newr)
+
+    def format(self, record):
+        rec = super().format(record)
+        if hasattr(record, 'log_ctx'):
+            ctx: dict[str, Any] = getattr(record, 'log_ctx').copy()
+            if 'trace_id' in ctx.keys():
+                rec = f'[trace_id: {ctx.pop('trace_id')}]' + rec
+            if ctx:
+                rec = (
+                    f"{rec} | "
+                    f"ctx: {', '.join([f'{k} = {v}' for k, v in ctx.items()])}"
+                )
+        return rec

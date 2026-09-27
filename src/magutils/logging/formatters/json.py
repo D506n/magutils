@@ -59,6 +59,8 @@ class JsonFormatter(BaseFormatter):
             if type(value) not in SERIALIZABLE and key != 'call_stack':
                 value = str(value)
             json_record['extra'][key] = value
+        if hasattr(record, 'log_ctx'):
+            json_record['ctx'] = getattr(record, 'log_ctx')
         result = orjson.dumps(json_record, option=self.dump_flags)
         if self.decode:
             return result.decode()

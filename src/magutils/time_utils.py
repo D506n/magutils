@@ -35,8 +35,7 @@ def parse_time(time_str: str, format_str: Optional[str] = None):
 
 
 @overload
-def format_time(time_obj: datetime, format_str: Optional[str] = None) -> str: 
-    ...  # noqa: F811 перегрузка для типизации
+def format_time(time_obj: datetime, format_str: Optional[str] = None) -> str: ...  # noqa перегрузка для типизации
 
 
 @lru_cache()

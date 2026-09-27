@@ -6,6 +6,7 @@ from threading import Event
 from typing import Any, Generator
 
 from ..formatters.base import BaseFormatter
+from ..log_context import log_ctx
 
 
 class BaseAsyncHandler(Handler):
@@ -20,7 +21,8 @@ class BaseAsyncHandler(Handler):
     def emit(self, record):
         if self._closed:
             return
-
+        if ctx := log_ctx.get():
+            setattr(record, 'log_ctx', ctx)
         self.queue.put_nowait(record)
         try:
             asyncio.get_running_loop()
