@@ -1,6 +1,6 @@
 from src.magutils.logging.formatters import MonocolorFormatter, ColoredConsoleFormatter, JsonFormatter
 from src.magutils.logging.formatters.base import BaseFormatter
-from src.magutils.logging.log_context import add_log_context, log_ctx
+from src.magutils.logging.log_context import add_log_context, ctx_add, log_ctx
 from colorama import Fore
 import pytest
 from logging import getLogger, LogRecord
@@ -8,6 +8,7 @@ import re
 from functools import partial
 import orjson
 from contextlib import contextmanager
+from contextvars import Token
 from src.magutils.logging.handlers import BaseAsyncHandler, AsyncConsoleHandler, AsyncFileHandler, RawQueueHandler
 from src.magutils.logging.handlers.file import LogFile, zip_compressor
 from typing import TypeVar, Generator
@@ -1027,6 +1028,84 @@ class TestLogContext:
                 await aio.sleep(0)
                 seen[i] = log_ctx.get().get('id')
             # после выхода из блока контекст задачи пуст
+            assert log_ctx.get() == {}
+
+        await aio.gather(*[worker(i) for i in range(n)])
+        assert seen == {i: i for i in range(n)}
+
+
+class TestCtxAdd:
+    def test_add_to_empty(self):
+        """ctx_add добавляет ключи в пустой контекст."""
+        token = ctx_add(id=1)
+        try:
+            assert log_ctx.get() == {'id': 1}
+        finally:
+            log_ctx.reset(token)
+
+    def test_add_merges_with_existing(self):
+        """ctx_add не заменяет, а дополняет существующий контекст."""
+        token1 = ctx_add(id=1, user='u1')
+        token2 = ctx_add(request='r1')
+        try:
+            assert log_ctx.get() == {'id': 1, 'user': 'u1', 'request': 'r1'}
+        finally:
+            log_ctx.reset(token2)
+            log_ctx.reset(token1)
+
+    def test_add_overrides_existing_key(self):
+        """При совпадении ключей новое значение перекрывает старое."""
+        token1 = ctx_add(id=1)
+        token2 = ctx_add(id=2, other='x')
+        try:
+            assert log_ctx.get() == {'id': 2, 'other': 'x'}
+        finally:
+            log_ctx.reset(token2)
+            log_ctx.reset(token1)
+
+    def test_reset_restores_previous_state(self):
+        """reset(token) восстанавливает состояние до вызова ctx_add."""
+        token0 = ctx_add(id=1)
+        token1 = ctx_add(user=42)
+        assert log_ctx.get() == {'id': 1, 'user': 42}
+        log_ctx.reset(token1)
+        assert log_ctx.get() == {'id': 1}
+        log_ctx.reset(token0)
+        assert log_ctx.get() == {}
+
+    def test_returns_token(self):
+        """ctx_add возвращает Token из contextvars."""
+        token = ctx_add(a=1)
+        try:
+            assert isinstance(token, Token)
+        finally:
+            log_ctx.reset(token)
+
+    def test_does_not_mutate_original(self):
+        """ctx_add не мутирует старый словарь — создаётся новая копия."""
+        token0 = ctx_add(id=1)
+        base = log_ctx.get()
+        token1 = ctx_add(user=42)
+        try:
+            # старый объект-словарь остался прежним
+            assert base == {'id': 1}
+            assert base is not log_ctx.get()
+        finally:
+            log_ctx.reset(token1)
+            log_ctx.reset(token0)
+
+    @pytest.mark.asyncio
+    async def test_isolated_between_parallel_tasks(self):
+        """Каждая asyncio-задача видит свой результат ctx_add."""
+        n = 10
+        seen = {}
+
+        async def worker(i):
+            token = ctx_add(id=i)
+            await aio.sleep(0)
+            seen[i] = log_ctx.get().get('id')
+            log_ctx.reset(token)
+            # после reset контекст задачи пуст
             assert log_ctx.get() == {}
 
         await aio.gather(*[worker(i) for i in range(n)])

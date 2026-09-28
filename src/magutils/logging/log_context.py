@@ -12,3 +12,7 @@ def add_log_context(**kw):
         yield
     finally:
         log_ctx.reset(token)
+
+
+def ctx_add(**kw):
+    return log_ctx.set({**log_ctx.get(), **kw})
