@@ -210,8 +210,10 @@ class Pipeline[T](metaclass=PipelineMeta):
             await coro
         except StopPipeline:
             pass
-        for coro in coros:
-            if inspect.iscoroutine(coro) \
-                    and inspect.getcoroutinestate(coro) != inspect.CORO_CLOSED:
-                coro.close()
+        finally:
+            for coro in coros:
+                if inspect.iscoroutine(coro) \
+                        and inspect.getcoroutinestate(coro) \
+                            != inspect.CORO_CLOSED:
+                    coro.close()
         return self
