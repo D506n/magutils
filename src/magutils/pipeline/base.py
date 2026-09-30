@@ -196,11 +196,11 @@ class Pipeline[T](metaclass=PipelineMeta):
 
     @classmethod
     async def run(cls, ctx_factory: PipeCTXFactory = PipeCTX, **kwargs) -> Self:
+        self = cls(ctx_factory, **kwargs)
+        coros: list[Awaitable] = [self.last_step()]
+        prew = coros[0]
+        coro = None
         try:
-            self = cls(ctx_factory, **kwargs)
-            coros: list[Awaitable] = [self.last_step()]
-            prew = coros[0]
-            coro = None
             for method_name, _ in reversed(self.get_steps()):
                 coro = getattr(self, method_name)(_call_next=prew)
                 prew = coro
