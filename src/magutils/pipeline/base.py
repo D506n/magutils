@@ -25,12 +25,12 @@ StepsType = list[tuple[str, int]]
 
 logger = getLogger(__name__)
 
-#  Отключаю лишний шум от asyncio, т.к. это сообщение для шагов 
-#  пайплайна не несёт смысловой нагрузки, любой из них может
-#  становиться точкой выхода из пайплайна
-warnings.filterwarnings('ignore', 
-                        "coroutine 'Pipeline.last_step' was never awaited", 
-                        RuntimeWarning)
+# #  Отключаю лишний шум от asyncio, т.к. это сообщение для шагов 
+# #  пайплайна не несёт смысловой нагрузки, любой из них может
+# #  становиться точкой выхода из пайплайна
+# warnings.filterwarnings('ignore', 
+#                         "coroutine 'Pipeline.last_step' was never awaited", 
+#                         RuntimeWarning)
 
 
 class StopPipeline(Exception): ...
@@ -197,8 +197,8 @@ class Pipeline[T](metaclass=PipelineMeta):
     @classmethod
     async def run(cls, ctx_factory: PipeCTXFactory = PipeCTX, **kwargs) -> Self:
         self = cls(ctx_factory, **kwargs)
-        coros: list[Awaitable] = []
-        prew = self.last_step()
+        coros: list[Awaitable] = [self.last_step()]
+        prew = coros[0]
         coro = None
         for method_name, _ in reversed(self.get_steps()):
             coro = getattr(self, method_name)(_call_next=prew)
@@ -210,4 +210,8 @@ class Pipeline[T](metaclass=PipelineMeta):
             await coro
         except StopPipeline:
             pass
+        for coro in coros:
+            if inspect.iscoroutine(coro) \
+                    and inspect.getcoroutinestate(coro) != inspect.CORO_CLOSED:
+                coro.close()
         return self
