@@ -242,6 +242,124 @@ print(Config.alphabet)  # abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01
 
 Заменяет подструктуру по пути на `new_data`.
 
+##### `deepmerge(old, new, copy_old=True, *, list_strategy='merge', delete_none=False) -> dict`
+
+Рекурсивно объединяет словари, отдавая приоритет значениям из `new`.
+Непереданные ключи сохраняются. Новые параметры `list_strategy` и `delete_none`
+передаются только по имени.
+
+| Параметр | По умолчанию | Поведение |
+|---|---|---|
+| `copy_old` | `True` | Копировать `old`; при `False` изменять его на месте |
+| `list_strategy` | `'merge'` | Объединять списки по индексам; `'replace'` заменяет их целиком |
+| `delete_none` | `False` | Сохранять `None` как значение; при `True` удалять соответствующий ключ словаря |
+
+**Объединение списков по индексам (`merge`)**
+
+Словари в совпадающих позициях объединяются рекурсивно, скаляры заменяются.
+Если новый список длиннее, его оставшиеся элементы добавляются. Если короче,
+старый хвост сохраняется. Пустой новый список в этом режиме не очищает старый.
+
+```python
+from magutils.json_path import deepmerge
+
+old = {'items': [{'a': 1}, 'old']}
+new = {'items': [{'b': 2}, 'new', 'added']}
+
+deepmerge(old, new)
+# {'items': [{'a': 1, 'b': 2}, 'new', 'added']}
+
+deepmerge({'items': [1, 2, 3]}, {'items': [4]})
+# {'items': [4, 2, 3]}
+```
+
+**Замена списков целиком (`replace`)**
+
+Подходит для изменения списков путей, правил и других настроек, где новый
+список должен полностью заменить предыдущий. Стратегия действует и во
+вложенных словарях.
+
+```python
+old = {'parser': {'rows': ['message.content -> message.content']}}
+patch = {'parser': {'rows': ['choices.0.message.content -> message.content']}}
+
+deepmerge(old, patch, list_strategy='replace')
+# {'parser': {'rows': ['choices.0.message.content -> message.content']}}
+
+deepmerge(old, {'parser': {'rows': []}}, list_strategy='replace')
+# {'parser': {'rows': []}}
+```
+
+**Удаление ключей через `None`**
+
+При `delete_none=True` значение `None` в новом словаре означает удаление
+ключа. Удаление отсутствующего ключа не вызывает ошибку. Это правило действует
+рекурсивно при объединении словарей. В JSON такому значению соответствует `null`.
+
+```python
+old = {'headers': {'Authorization': 'example-token', 'Accept': 'application/json'}}
+patch = {'headers': {'Authorization': None, 'Absent': None}}
+
+deepmerge(old, patch, delete_none=True)
+# {'headers': {'Accept': 'application/json'}}
+
+deepmerge({'value': 1}, {'value': None})
+# {'value': None} — без delete_none ключ сохраняется
+```
+
+`None` внутри списка не удаляет элемент. При замене списка он копируется
+целиком: `delete_none` не обрабатывает содержимое заменяемого списка, включая
+словари внутри него.
+
+```python
+deepmerge({'items': [1, 2]}, {'items': [None]}, delete_none=True)
+# {'items': [None, 2]}
+
+deepmerge(
+    {'items': [1]},
+    {'items': [None, {'value': None}]},
+    list_strategy='replace',
+    delete_none=True,
+)
+# {'items': [None, {'value': None}]}
+```
+
+Для частичного обновления конфигурации можно совместить оба режима:
+
+```python
+updated = deepmerge(
+    current_config,
+    patch,
+    list_strategy='replace',
+    delete_none=True,
+)
+# Затем приложение валидирует updated перед сохранением.
+```
+
+`deepmerge` не валидирует схему конфигурации: проверка обязательных полей и
+допустимых значений остаётся на стороне вызывающего кода.
+
+**Копирование и смена типов**
+
+По умолчанию `old` не меняется. При `copy_old=False` результатом является тот
+же словарь; существующие вложенные словари и списки при объединении также
+изменяются на месте. Вставляемые изменяемые значения из `new` копируются
+в обоих режимах.
+
+```python
+old = {'nested': {'a': 1}}
+result = deepmerge(old, {'nested': {'b': 2}}, copy_old=False)
+assert result is old
+# old == {'nested': {'a': 1, 'b': 2}}
+
+deepmerge({'value': 1}, {'value': {'nested': 2}})
+# {'value': {'nested': 2}}
+```
+
+При смене типа новое значение заменяет старое; новые словари обрабатываются
+рекурсивно. Множества заменяются целиком, без объединения по позициям.
+Неизвестное значение `list_strategy` вызывает `ValueError` до изменения `old`.
+
 ##### `format(template: str, data: dict) -> str`
 
 Заменяет в строке плейсхолдеры `{путь}` на значения из `data`. Поддерживает wildcard и индексы.

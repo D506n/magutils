@@ -2,7 +2,7 @@ import re
 from collections.abc import Mapping
 from copy import deepcopy
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 from .data_to_path import data_to_paths
 from .intent import Del, Get, Set
@@ -78,24 +78,70 @@ def rebuild(*paths: str, data: dict | list, silent=True):
     return result
 
 
-def __deepmerge(old: dict[Any, Any], new: Mapping[Any, Any]) -> dict[Any, Any]:
-    for k, v in new.items():
-        if isinstance(v, Mapping):
-            old[k] = __deepmerge(old.get(k, {}), v)
-        elif isinstance(v, (list, set)) and isinstance(old.get(k), (list, set)):
-            for o, n in zip(old[k], new[k]):
-                __deepmerge(o, n)
+def __merge_value(
+        old: Any,
+        new: Any,
+        list_strategy: Literal['merge', 'replace'],
+        delete_none: bool) -> Any:
+    if isinstance(new, Mapping):
+        if not isinstance(old, dict):
+            old = deepcopy(dict(old)) if isinstance(old, Mapping) else {}
+        return __deepmerge(old, new, list_strategy, delete_none)
+    if isinstance(old, list) and isinstance(new, list) \
+            and list_strategy == 'merge':
+        for index, value in enumerate(new):
+            if index < len(old):
+                old[index] = __merge_value(
+                    old[index], value, list_strategy, delete_none)
+            else:
+                old.append(__merge_value(
+                    None, value, list_strategy, delete_none))
+        return old
+    return deepcopy(new)
+
+
+def __deepmerge(
+        old: dict[Any, Any],
+        new: Mapping[Any, Any],
+        list_strategy: Literal['merge', 'replace'],
+        delete_none: bool) -> dict[Any, Any]:
+    for key, value in new.items():
+        if delete_none and value is None:
+            old.pop(key, None)
         else:
-            old[k] = v
+            old[key] = __merge_value(
+                old.get(key), value, list_strategy, delete_none)
     return old
 
 
-def deepmerge(old: dict, new: dict, copy_old: bool = True):
-    if copy_old:
-        result = deepcopy(old)
-    else:
-        result = old
-    return __deepmerge(result, new)
+def deepmerge(
+        old: dict[Any, Any],
+        new: dict[Any, Any],
+        copy_old: bool = True,
+        *,
+        list_strategy: Literal['merge', 'replace'] = 'merge',
+        delete_none: bool = False) -> dict[Any, Any]:
+    """Рекурсивно объединить словари, отдавая приоритет значениям из new.
+
+    В режиме merge списки объединяются по индексам: совпадающие позиции
+    обрабатываются рекурсивно, новые добавляются, оставшийся старый хвост
+    сохраняется. В режиме replace список заменяется целиком, включая пустой.
+    Заменяемые списки копируются целиком, без обработки их содержимого.
+    Множества и остальные значения заменяются; несовпадающие типы также
+    заменяются, а новый словарь обрабатывается рекурсивно.
+
+    При delete_none=True значение None удаляет ключ словаря, даже если
+    старого ключа нет. None в списке не удаляет элемент.
+    По умолчанию None сохраняется как обычное значение.
+
+    copy_old=False изменяет old на месте, включая вложенные словари и списки.
+    Иначе old копируется. Вставляемые значения из new копируются в обоих
+    режимах, чтобы результат не разделял с ними изменяемые объекты.
+    """
+    if list_strategy not in ('merge', 'replace'):
+        raise ValueError('list_strategy must be "merge" or "replace"')
+    result = deepcopy(old) if copy_old else old
+    return __deepmerge(result, new, list_strategy, delete_none)
 
 
 def format(text: str, data: dict):
