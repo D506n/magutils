@@ -6,8 +6,12 @@ from ..star.starlark import BaseCTX, Runner
 
 HOOK_WRAPPER = '''
 {setup}
+
+def process(params, headers, body):
 {script}
-results = (params, headers, body,)
+   return params, headers, body
+
+results = process(params, headers, body)
 '''
 logger = getLogger('hook_executor')
 
@@ -39,9 +43,6 @@ class QHookRunner(Runner):
         wrapper = self.build_wrapper(HOOK_WRAPPER)
         self.storage = storage or Storage()
         super().__init__(size, wrapper, partial(HookCtx, self.storage))
-
-    def wrap_script(self, user_script):
-        return self.wrap_template.format(script=user_script)
 
     @classmethod
     async def run(cls,  # type: ignore[override]
