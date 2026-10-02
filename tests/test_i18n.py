@@ -455,10 +455,18 @@ class TestI18n:
         with pytest.raises(KeyError, match='en:plural'):
             i18n.t('plural', lang='en', count=5, strict=True)
 
-    def test_t_default_lang(self, temp_locdir):
-        '''Если не указан язык, то выбирается текущий язык, если текущий не установлен - первый из загруженных'''
+    @pytest.mark.parametrize('first_lang, expected', [
+        ('ru', 'Привет, Иван!'), ('en', 'Hello, Иван!'),
+    ])
+    def test_t_default_lang(self, temp_locdir, first_lang, expected):
+        """Без текущего языка используется первый загруженный словарь."""
         i18n = _I18n(temp_locdir)
-        assert i18n.t('hello', name='Иван') == 'Привет, Иван!'
+        # Порядок файлов в iterdir не гарантирован: проверяем оба порядка явно.
+        i18n.dictionaries = {
+            first_lang: i18n.dictionaries[first_lang],
+            **i18n.dictionaries,
+        }
+        assert i18n.t('hello', name='Иван') == expected
         i18n.current_lang = 'en'
         assert i18n.t('hello', name='Billy') == 'Hello, Billy!'
 

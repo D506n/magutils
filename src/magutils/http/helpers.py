@@ -2,6 +2,8 @@ from functools import partial
 from logging import getLogger
 from typing import Optional
 
+import orjson
+
 from ..star.starlark import BaseCTX, Runner
 
 HOOK_WRAPPER = '''
@@ -14,6 +16,27 @@ def process(params, headers, body):
 results = process(params, headers, body)
 '''
 logger = getLogger('hook_executor')
+
+
+class HookResultError(ValueError):
+    """HTTP hook returned values that cannot form a request or response."""
+
+
+def validate_hook_result(result: object) -> tuple[dict, dict, object]:
+    if not isinstance(result, (tuple, list)) or len(result) != 3:
+        raise HookResultError('HTTP hook must return params, headers, body')
+    params, headers, body = result
+    if not isinstance(params, dict) or not isinstance(headers, dict):
+        raise HookResultError(
+            'HTTP hook params and headers must be dictionaries'
+        )
+    try:
+        orjson.dumps(body)
+    except (TypeError, ValueError):
+        raise HookResultError(
+            'HTTP hook body must be JSON serializable'
+        ) from None
+    return params, headers, body
 
 
 class Storage():
@@ -55,4 +78,4 @@ class QHookRunner(Runner):
             kwargs['wrapper'] = HOOK_WRAPPER
         add_ctx = {'params': params, 'headers': headers, 'body': body}
         r = await super().run(script, {}, add_ctx=add_ctx, **kwargs)
-        return r.result[0], r.result[1], r.result[2]
+        return validate_hook_result(r.result)

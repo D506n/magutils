@@ -3,8 +3,10 @@ import re
 import textwrap
 import time
 from contextlib import asynccontextmanager
-from functools import lru_cache
-from typing import Any, Callable, Optional, Self, TypeVar
+from contextvars import copy_context
+from functools import lru_cache, partial
+from threading import Event
+from typing import Any, Callable, Optional, Self, TypeVar, cast
 
 try:
     import starlark as sl
@@ -59,10 +61,11 @@ class StarResult[ResultType]():
 
     @property
     def result(self) -> ResultType:
-        if self.success and self._res is not None:
-            return self._res
-        else:
-            raise self.error
+        if self.success:
+            return cast(ResultType, self._res)
+        if self._error is not None:
+            raise self._error
+        raise RuntimeError('Starlark result is not available')
 
     @result.setter
     def result(self, value):
@@ -145,15 +148,33 @@ class Runner:
     @asynccontextmanager
     async def get_ctx(self, add_ctx: Optional[dict] = None):
         ctx = await self.ctxs.get()
+        try:
+            self._prepare_ctx(ctx, add_ctx)
+            yield ctx
+        finally:
+            self._release_ctx(ctx, add_ctx)
+
+    @staticmethod
+    def _prepare_ctx(ctx: BaseCTX, add_ctx: dict | None) -> None:
         if add_ctx:
-            for key, val in add_ctx.items():
-                ctx.mod[key] = val
-        yield ctx
+            for key, value in add_ctx.items():
+                ctx.mod[key] = value
+
+    def _release_ctx(self, ctx: BaseCTX, add_ctx: dict | None) -> None:
         if add_ctx:
-            for key, val in add_ctx.items():
+            for key in add_ctx:
                 ctx.mod[key] = None
         ctx.clear()
         self.ctxs.put_nowait(ctx)
+
+    def _finish_run(
+        self, ctx: BaseCTX, add_ctx: dict | None,
+        worker: aio.Future[StarResult[Any]],
+    ) -> None:
+        # The executor future completes only after the thread stops using ctx.
+        self._release_ctx(ctx, add_ctx)
+        if not worker.cancelled():
+            worker.exception()
 
     @lru_cache()
     def wrap_script(self, user_script: str) -> str:
@@ -164,25 +185,49 @@ class Runner:
     def parse(self, script) -> sl.AstModule:
         return sl.parse('main.star', script)
 
+    @staticmethod
+    def _evaluate(
+        ctx: BaseCTX, ast: sl.AstModule, cancelled: Event,
+    ) -> StarResult[Any]:
+        result: StarResult[Any] = StarResult()
+        options = sl.EvalOptions(check_cancelled=cancelled.is_set)
+        try:
+            sl.eval_with(options, ctx.mod, ast, ctx.globs)
+            result.result = ctx.mod['results']
+        except Exception as exc:
+            result.error = exc
+        result.prints = ctx.prints.copy()
+        return result
+
     async def _run(self,
                    script,
                    data,
                    add_ctx: Optional[dict] = None):
         wrapped_script = self.wrap_script(script)
-        res: StarResult[Any] = StarResult()
-        async with self.get_ctx(add_ctx) as ctx:
-            globs = ctx.globs
-            mod = ctx.mod
-            mod['input'] = data
-            try:
-                ast = self.parse(wrapped_script)
-                await aio.to_thread(sl.eval, mod, ast, globs)
-            except Exception as e:
-                res.error = e
-            else:
-                res.result = mod['results']
-            res.prints = ctx.prints.copy()
-            return res
+        ctx = await self.ctxs.get()
+        cancelled = Event()
+        worker: aio.Future[StarResult[Any]] | None = None
+        try:
+            self._prepare_ctx(ctx, add_ctx)
+            ctx.mod['input'] = data
+            ast = self.parse(wrapped_script)
+            # Preserve ContextVars just as asyncio.to_thread does. Shield keeps
+            # cancellation from marking the worker done before it really ends.
+            worker = aio.get_running_loop().run_in_executor(
+                None, copy_context().run, self._evaluate, ctx, ast, cancelled,
+            )
+            worker.add_done_callback(partial(self._finish_run, ctx, add_ctx))
+            return await aio.shield(worker)
+        except aio.CancelledError:
+            cancelled.set()
+            raise
+        except Exception as exc:
+            result: StarResult[Any] = StarResult()
+            result.error = exc
+            return result
+        finally:
+            if worker is None:
+                self._release_ctx(ctx, add_ctx)
 
     @classmethod
     def inst(cls, wrapper: Optional[str] = None):
