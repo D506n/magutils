@@ -1,5 +1,4 @@
 import inspect
-import warnings
 from functools import wraps
 from logging import getLogger
 from typing import (
@@ -24,13 +23,6 @@ T = TypeVar('T', bound=BaseModel)
 StepsType = list[tuple[str, int]]
 
 logger = getLogger(__name__)
-
-# #  Отключаю лишний шум от asyncio, т.к. это сообщение для шагов 
-# #  пайплайна не несёт смысловой нагрузки, любой из них может
-# #  становиться точкой выхода из пайплайна
-# warnings.filterwarnings('ignore', 
-#                         "coroutine 'Pipeline.last_step' was never awaited", 
-#                         RuntimeWarning)
 
 
 class StopPipeline(Exception): ...
@@ -59,11 +51,6 @@ PipelineStep = Union[
 def step(order: int) -> PipelineStep:  # noqa: C901
     """Декоратор для пометки шагов в конвеере."""
     def decorator(func: PipelineStep) -> PipelineStep:  # noqa: C901
-        warnings.filterwarnings(
-            'ignore', 
-            f"coroutine '.+{func.__name__}' was never awaited", 
-            RuntimeWarning)  # В пайплайне это предупреждение не нужно
-
         def select_wrap(func):
             if inspect.iscoroutinefunction(func):
                 wrap = async_wrapper
@@ -195,8 +182,11 @@ class Pipeline[T](metaclass=PipelineMeta):
         return f'{self.__class__.__name__}<{self.ctx.id}>'
 
     @classmethod
-    async def run(cls, ctx_factory: PipeCTXFactory = PipeCTX, **kwargs) -> Self:
-        self = cls(ctx_factory, **kwargs)
+    async def run(cls, 
+            ctx_factory: PipeCTXFactory = PipeCTX, **kwargs
+    ) -> Self:
+        kwargs['ctx_factory'] = ctx_factory
+        self = cls(**kwargs)
         coros: list[Awaitable] = [self.last_step()]
         prew = coros[0]
         coro = None
