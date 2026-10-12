@@ -1,12 +1,18 @@
-from magutils.scheduled_tasks import CronTask, OneTimeTask, Scheduler, ScheduledTask
-import cron_parser_py as cron
-from src.magutils.time_utils import get_current_time, parse_time, get_tz
-import pytest
-from unittest.mock import AsyncMock, patch, Mock
 import asyncio as aio
 import logging
-from src.magutils.bg_tasks import BgTask
 from datetime import timedelta
+from unittest.mock import AsyncMock, Mock, patch
+
+import cron_parser_py as cron
+import pytest
+
+from magutils.scheduled_tasks import (
+    CronTask,
+    OneTimeTask,
+    ScheduledTask,
+    Scheduler,
+)
+from magutils.time_utils import get_current_time, get_tz, parse_time
 
 
 class TestScheduledTask:
@@ -17,29 +23,67 @@ class TestScheduledTask:
             receiver = AsyncMock()
             key = task.subscribe(receiver)
             assert isinstance(key, str)
-            task.emit()
-            await aio.sleep(0.1)
+            await task.emit()
             receiver.assert_called_once_with(123)
-            task.emit(1)
-            await aio.sleep(0.1)
+            await task.emit(1)
             receiver.assert_called_with(1)
             task.unsubscribe(key)
-            task.emit()
-            await aio.sleep(0.1)
+            await task.emit()
             assert receiver.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_emit_done_state(self):
+        with patch.object(ScheduledTask, 'parse_expr'):
+            task = ScheduledTask('', 123)
+            await task.emit()
+            assert task.fsm.current_state.name == 'done'
+
+    @pytest.mark.asyncio
+    async def test_emit_error_state(self):
+        with patch.object(ScheduledTask, 'parse_expr'):
+            task = ScheduledTask('', 123)
+
+            async def bad(payload):
+                raise RuntimeError('boom')
+
+            task.subscribe(bad)
+            await task.emit()
+            assert task.fsm.current_state.name == 'error'
+
+    @pytest.mark.asyncio
+    async def test_dump(self):
+        with patch.object(ScheduledTask, 'parse_expr'):
+            task = ScheduledTask('', 123, id='test-id')
+            assert task.dump() == {
+                'raw_expr': '',
+                'executions': 0,
+                'payload': 123,
+                'id': 'test-id',
+                'state': 'created',
+            }
+
+    @pytest.mark.asyncio
+    async def test_state_restore(self):
+        with patch.object(ScheduledTask, 'parse_expr'):
+            task = ScheduledTask('', 123, id='test-id', state='done')
+            assert task.fsm.current_state.name == 'done'
 
 
 class TestCronTask:
-    def test_parse_expr(self):
+    @pytest.mark.asyncio
+    async def test_parse_expr(self):
         expr = '* * * * *'
         task = CronTask(expr, 123)
         assert task.expr == cron.parse(expr)
 
-    def test_next_run(self):
+    @pytest.mark.asyncio
+    async def test_next_run(self):
         expect = get_current_time()
-        expect = expect.replace(month=1, day=1, hour=12, minute=0, second=0, microsecond=0)
-        if get_current_time()>expect:
-            expect = expect.replace(year=expect.year+1)
+        expect = expect.replace(
+            month=1, day=1, hour=12, minute=0, second=0, microsecond=0
+        )
+        if get_current_time() > expect:
+            expect = expect.replace(year=expect.year + 1)
         expr = '0 12 1 1 *'
         task = CronTask(expr, 123)
         assert task.next_run == expect
@@ -52,7 +96,8 @@ class TestCronTask:
 
 
 class TestOneTimeTask:
-    def test_parse_expr(self):
+    @pytest.mark.asyncio
+    async def test_parse_expr(self):
         expr = '2121-01-01 12:00'
         expect = parse_time(expr, '%Y-%m-%d %H:%M').replace(tzinfo=get_tz())
         task = OneTimeTask(expr, 123)
@@ -83,6 +128,25 @@ class TestScheduler:
             assert len(sch.tasks) == 2
 
     @pytest.mark.asyncio
+    async def test_load_task(self):
+        with patch.object(Scheduler, 'main'):
+            sch = Scheduler()
+            dumped = {
+                'raw_expr': '2121-01-01 12:00',
+                'executions': 0,
+                'payload': 123,
+                'id': 'test-id',
+                'state': 'created',
+            }
+            task = sch.load_task(dumped)
+            assert task.id == 'test-id'
+            assert task.payload == 123
+            assert task.fsm.current_state.name == 'created'
+            assert sch.tasks['test-id'] is task
+            with pytest.raises(ValueError, match='Invalid expression'):
+                sch.load_task({**dumped, 'raw_expr': 'alalala'})
+
+    @pytest.mark.asyncio
     async def test_exec_wrapper(self, caplog):
         def gct():
             dt = get_current_time()
@@ -93,12 +157,12 @@ class TestScheduler:
         task = OneTimeTask(dt.strftime('%Y-%m-%d %H:%M'), 123)
         cron_task = CronTask('* * * * *', 123)
         gct.cache_clear = Mock()
-        cron_task.calc_next_run = gct # чтобы не ждать
-        with patch.object(Scheduler, 'main') as main:
+        cron_task.calc_next_run = gct  # чтобы не ждать
+        with patch.object(Scheduler, 'main'):
             sch = Scheduler()
             caplog.set_level(logging.WARNING)
             await sch.exec_wrapper(past_task)
-            assert 'Task cannot be executed in past time' in caplog.text
+            assert 'Task execution time was missed.: ' in caplog.text
             task.subscribe(mock)
             caplog.set_level(logging.INFO)
             await sch.exec_wrapper(task)
@@ -114,8 +178,7 @@ class TestScheduler:
         dt = get_current_time()
         sc.add_task(dt.strftime('%Y-%m-%d %H:%M'), 123)
         await aio.sleep(0.1)
-        # mock.assert_called_once()
         sc.shutdown()
-        assert sc.alive == False
+        assert sc.alive is False
         await aio.sleep(0.1)
         assert sc.main_task.done()

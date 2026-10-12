@@ -653,23 +653,55 @@ limiter = Limiter.get("default_limited")
 - `get(key)` — возвращает существующий лимитер для ключа или создаёт новый с параметрами по умолчанию (10 запросов/сек).
 - `rate_limit(key)` — асинхронный контекстный менеджер, который приостанавливает выполнение при превышении лимита.
 
-### utils.schedulled_tasks
+### utils.scheduled_tasks
 
-Модуль для планирования задач по cron-расписанию. Класс `ScheduledTask` позволяет создавать задачи, которые выполняются по расписанию с поддержкой подписчиков.
+Модуль для планирования задач по расписанию: cron-выражения и одноразовые задачи. `Scheduler` управляет очередью и выполнением задач, а `ScheduledTask` (абстрактная база) — жизненным циклом конкретной задачи: подписчики, состояние (FSM), сериализация.
 
-Пример:
+#### Типы задач
+
+- `CronTask` — задача по cron-расписанию, например `'* * * * *'` (каждую минуту).
+- `OneTimeTask` — одноразовая задача, выражение в формате `'YYYY-MM-DD HH:MM'`.
+
+Тип задачи определяется автоматически по выражению в `Scheduler.add_task()`.
+
+#### Пример
 
 ```python
-from magutils.schedulled_tasks import ScheduledTask
+from magutils.scheduled_tasks import Scheduler
 import asyncio
 
 async def job(payload):
     print(f"Job executed with payload: {payload}")
 
-task = ScheduledTask("* * * * *", {"data": "test"})
-task.subscribe("my_job", job)
-task.schedule()
+scheduler = Scheduler()
+
+# Одноразовая задача
+scheduler.add_task("2126-01-01 12:00", {"data": "once"})
+
+# Задача по cron-расписанию (каждую минуту)
+task = scheduler.add_task("* * * * *", {"data": "cron"})
+key = task.subscribe(job)  # подписка, возвращает ключ
+
+# ... при завершении работы:
+scheduler.shutdown()
 ```
+
+#### Жизненный цикл задачи
+
+Каждая задача проходит состояния конечного автомата: `created` → `pending` → `running` → `done` (или `error`, если подписчик бросил исключение).
+
+#### Сериализация
+
+`task.dump()` возвращает словарь `DumpedTask` с полями `raw_expr`, `executions`, `payload`, `id`, `state`. Восстановление: `scheduler.load_task(dumped)`.
+
+#### API
+
+- `Scheduler.add_task(expr, payload, id=None)` — создаёт задачу по выражению и возвращает её.
+- `Scheduler.load_task(dumped)` — загружает задачу из дампа.
+- `Scheduler.shutdown()` — останавливает планировщик.
+- `task.subscribe(callback)` — подписка на выполнение, возвращает ключ.
+- `task.unsubscribe(key)` — отписка по ключу.
+- `await task.emit(payload=None)` — выполнить задачу (вызывает всех подписчиков).
 
 ### utils.inter
 

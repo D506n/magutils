@@ -3,11 +3,21 @@ import sys
 from datetime import datetime
 from functools import lru_cache
 from logging import getLogger
-from typing import Any, Callable, Coroutine, Optional, TypeVar, overload
+from typing import (
+    Any,
+    Callable,
+    Coroutine,
+    Optional,
+    TypedDict,
+    TypeVar,
+    overload,
+)
 
 import cron_parser_py as cron
 
 from .bg_tasks import BgTask
+from .fsm.group import StateGroup
+from .fsm.state import State
 from .id import gen_id
 from .time_utils import get_current_time, get_delta, get_tz, parse_time
 
@@ -16,8 +26,29 @@ ET = TypeVar('ET', bound=datetime)
 logger = getLogger(__name__)
 
 
+class DumpedTask(TypedDict):
+    raw_expr: str
+    executions: int
+    payload: Any
+    id: str
+    state: str
+
+
+class TaskFSM(StateGroup):
+    created = State('created', True)
+    pending = State('pending')
+    running = State('running')
+    error = State('error')
+    done = State('done')
+
+
 class ScheduledTask[T, ET]:
-    def __init__(self, expr: str, payload: T, id: Optional[str] = None):
+    def __init__(self, 
+            expr: str, 
+            payload: T, 
+            id: Optional[str] = None, 
+            state: str = 'created'
+    ):
         self.raw_expr = expr
         self.executions = 0
         self.expr = self.parse_expr(self.raw_expr)
@@ -26,6 +57,16 @@ class ScheduledTask[T, ET]:
         self.id = id or gen_id()
         self.subscribers: dict[str, Callable[[T], Coroutine]] = {}
         self._next_run = None
+        self.fsm = TaskFSM(self.id, state, state != 'created')
+
+    def dump(self) -> DumpedTask:
+        return {
+            'raw_expr': self.raw_expr,
+            "executions": self.executions,
+            "payload": self.payload,
+            "id": self.id,
+            "state": self.fsm.current_state.name
+        }
 
     def parse_expr(self, expr: str) -> ET:
         '''Парсит выражение задачи в внутреннее представление.
@@ -67,20 +108,24 @@ class ScheduledTask[T, ET]:
         raise NotImplementedError()
 
     @overload
-    def emit(self): ...
+    async def emit(self): ...
 
     @overload
-    def emit(self, payload: T): ...
+    async def emit(self, payload: T): ...
 
-    def emit(self, payload: Optional[T] = None):
-        '''Запускает выполнение задачи, вызывая всех подписчиков.
-        
-        Создаёт фоновые задачи для каждого коллбэка.
-        '''
+    async def emit(self, payload: Optional[T] = None):
+        '''Запускает выполнение задачи, вызывая всех подписчиков.'''
+        await self.fsm.emit('running')
         if payload:
             self.payload = payload
         tasks = [t(self.payload) for t in self.subscribers.values()]
-        BgTask.create(*tasks)
+        try:
+            await aio.gather(*tasks)
+        except Exception as e:
+            logger.error(e)
+            await self.fsm.emit('error')
+        else:
+            await self.fsm.emit('done')
         self.executions += 1
         self.calc_next_run.cache_clear()
 
@@ -230,20 +275,39 @@ class Scheduler():
                 return inst
         raise ValueError('Invalid expression')
 
+    def load_task(self, task: DumpedTask):
+        '''Загружает задачу из упакованного состояния.
+        Returns:
+            ScheduledTask: Задача.
+        Raises:
+            ValueError: Если выражение не подходит ни под один формат задачи.
+        '''
+        for cls in classes:
+            if cls.match(task['raw_expr']):
+                inst = cls(
+                    task['raw_expr'], task['payload'], task['id'], task['state']
+                )
+                self.tasks[inst.id] = inst
+                self.sched_que.put_nowait(inst)
+                if not self.main_task:
+                    self.main_task = aio.create_task(self.main())
+                return inst
+        raise ValueError('Invalid expression')
+
     async def exec_wrapper(self, task: ScheduledTask):
         if task.next_run < get_current_time().replace(second=0, microsecond=0):
-            if task.executions == 0:
-                logger.warning('Task cannot be executed in past time: %s, %s',
-                    task.id, task.next_run)
-            return
+            logger.warning('Task execution time was missed.: %s, %s',
+                task.id, task.next_run)
         if task.executions == 0:
             logger.info('New task: %s, next run: %s', task.id, task.next_run)
+        await task.fsm.emit('pending')
         delta = get_delta(get_current_time(), task.next_run)
         wait = delta.total_seconds()
         task.scheduled = True
-        logger.info('Task scheduled: %s. Wait: %s', task.id, wait)
-        await aio.sleep(wait)
-        task.emit()
+        if wait > 0:
+            logger.info('Task scheduled: %s. Wait: %s', task.id, wait)
+            await aio.sleep(wait)
+        await task.emit()
         logger.info('Task completed: %s', task.id)
         task.scheduled = False
         if task.next_run < get_current_time():
