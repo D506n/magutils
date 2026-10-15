@@ -1,9 +1,11 @@
+import base64
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import orjson
 import pytest
 from aiolimiter import AsyncLimiter
+from httpx import USE_CLIENT_DEFAULT
 
 from src.magutils.http.client import LimitAwareClient
 from src.magutils.http.helpers import HookCtx, QHookRunner, Storage
@@ -45,7 +47,10 @@ class TestLimitAwareClient:
         assert resp.status_code == 200
         mock_get_limiter.assert_called_once()
         mock_super_send.assert_called_once_with(
-            request, stream=False, auth=..., follow_redirects=...
+            request,
+            stream=False,
+            auth=USE_CLIENT_DEFAULT,
+            follow_redirects=USE_CLIENT_DEFAULT,
         )
 
     @pytest.mark.asyncio
@@ -78,6 +83,165 @@ class TestLimitAwareClient:
         mock_super_send.assert_called_once_with(
             request, stream=True, auth=("user", "pass"), follow_redirects=True
         )
+
+    @pytest.mark.asyncio
+    async def test_send_without_auth_uses_client_defaults(self):
+        """Регрессия (issue #1): send() без явного auth не падает с TypeError.
+
+        Раньше send() передавал в httpx.AsyncClient.send() значение auth=...
+        (голый Ellipsis), которое не является сантинелом httpx USE_CLIENT_DEFAULT,
+        и запрос падал с TypeError ещё до обращения к транспорту.
+        """
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            return httpx.Response(200, content=b"test")
+
+        async with LimitAwareClient(
+            base_url="https://example.invalid",
+            limiter=AsyncLimiter(5, 1),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            request = client.build_request("GET", "/file")
+            response = await client.send(request, stream=True, follow_redirects=False)
+            body = await response.aread()
+            await response.aclose()
+
+            assert response.status_code == 200
+            assert body == b"test"
+            assert len(calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_send_inherits_client_auth(self):
+        """Регрессия (issue #1): auth клиента применяется, если auth не передан в send()."""
+        seen = {}
+
+        def handler(request):
+            seen["authorization"] = request.headers.get("Authorization")
+            return httpx.Response(200, content=b"ok")
+
+        async with LimitAwareClient(
+            base_url="https://example.invalid",
+            auth=("user", "pass"),
+            limiter=AsyncLimiter(5, 1),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            response = await client.send(client.build_request("GET", "/"))
+
+        assert response.status_code == 200
+        assert seen["authorization"] == "Basic " + base64.b64encode(b"user:pass").decode()
+
+    @pytest.mark.asyncio
+    async def test_send_auth_none_disables_client_auth(self):
+        """Регрессия (issue #1): явный auth=None отключает авторизацию клиента."""
+        seen = {}
+
+        def handler(request):
+            seen["authorization"] = request.headers.get("Authorization")
+            return httpx.Response(200, content=b"ok")
+
+        async with LimitAwareClient(
+            base_url="https://example.invalid",
+            auth=("user", "pass"),
+            limiter=AsyncLimiter(5, 1),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            response = await client.send(client.build_request("GET", "/"), auth=None)
+
+        assert response.status_code == 200
+        assert seen["authorization"] is None
+
+    @pytest.mark.asyncio
+    async def test_send_explicit_auth_overrides_client_auth(self):
+        """Регрессия (issue #1): явный auth в send() переопределяет auth клиента."""
+        seen = {}
+
+        def handler(request):
+            seen["authorization"] = request.headers.get("Authorization")
+            return httpx.Response(200, content=b"ok")
+
+        async with LimitAwareClient(
+            base_url="https://example.invalid",
+            auth=("client-user", "client-pass"),
+            limiter=AsyncLimiter(5, 1),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            response = await client.send(
+                client.build_request("GET", "/"),
+                auth=("explicit-user", "explicit-pass"),
+            )
+
+        assert response.status_code == 200
+        assert seen["authorization"] == "Basic " + base64.b64encode(
+            b"explicit-user:explicit-pass"
+        ).decode()
+
+    @pytest.mark.asyncio
+    async def test_send_inherits_client_follow_redirects(self):
+        """Регрессия (issue #1): follow_redirects клиента применяется по умолчанию."""
+
+        def handler(request):
+            if request.url.path == "/redirect":
+                return httpx.Response(302, headers={"location": "/final"})
+            return httpx.Response(200, content=b"final")
+
+        async with LimitAwareClient(
+            base_url="https://example.invalid",
+            follow_redirects=True,
+            limiter=AsyncLimiter(5, 1),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            response = await client.send(client.build_request("GET", "/redirect"))
+
+        assert response.status_code == 200
+        assert response.url.path == "/final"
+        assert len(response.history) == 1
+
+    @pytest.mark.asyncio
+    async def test_send_explicit_follow_redirects_false_overrides_client(self):
+        """Регрессия (issue #1): явное follow_redirects=False переопределяет клиент."""
+
+        def handler(request):
+            if request.url.path == "/redirect":
+                return httpx.Response(302, headers={"location": "/final"})
+            return httpx.Response(200, content=b"final")
+
+        async with LimitAwareClient(
+            base_url="https://example.invalid",
+            follow_redirects=True,
+            limiter=AsyncLimiter(5, 1),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            response = await client.send(
+                client.build_request("GET", "/redirect"), follow_redirects=False
+            )
+
+        assert response.status_code == 302
+        assert response.headers["location"] == "/final"
+
+    @pytest.mark.asyncio
+    async def test_send_still_engages_limiter_with_real_transport(self):
+        """Регрессия (issue #1): send() по-прежнему оборачивается лимитером."""
+        sent = []
+
+        def handler(request):
+            sent.append(request)
+            return httpx.Response(200, content=b"ok")
+
+        async with LimitAwareClient(
+            base_url="https://example.invalid",
+            limiter=AsyncLimiter(5, 1),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            with patch.object(AsyncLimiter, "__aenter__", new_callable=AsyncMock) as mock_enter:
+                with patch.object(AsyncLimiter, "__aexit__", new_callable=AsyncMock) as mock_exit:
+                    response = await client.send(client.build_request("GET", "/"))
+
+        assert response.status_code == 200
+        assert len(sent) == 1
+        mock_enter.assert_awaited_once()
+        mock_exit.assert_awaited_once()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

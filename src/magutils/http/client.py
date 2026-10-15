@@ -1,7 +1,7 @@
 from typing import Optional
 
 from aiolimiter import AsyncLimiter
-from httpx import AsyncClient, Limits, Timeout
+from httpx import USE_CLIENT_DEFAULT, AsyncClient, Limits, Timeout
 
 from ..req_limit import Limiter
 
@@ -63,8 +63,8 @@ class LimitAwareClient(AsyncClient):
             request, 
             *, 
             stream=False, 
-            auth=..., 
-            follow_redirects=...):
+            auth=USE_CLIENT_DEFAULT, 
+            follow_redirects=USE_CLIENT_DEFAULT):
         async with self.__get_limiter():
             return await super().send(
                 request, 
