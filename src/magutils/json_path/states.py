@@ -174,8 +174,9 @@ class IndexSet(IndexAccess):
 
     def __call__(self, ctx: Ctx):
         if isinstance(ctx.data, list):
-            if 0 < ctx.key < len(ctx.data):
-                ctx.data[ctx.key] = ctx.value
+            key = int(ctx.path[ctx.pos])
+            if 0 < key < len(ctx.data):
+                ctx.data[key] = ctx.value
             else:
                 ctx.data.append(ctx.value)
             self.next_step(ctx)
