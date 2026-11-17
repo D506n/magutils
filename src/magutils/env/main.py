@@ -1,5 +1,6 @@
 from functools import wraps
 from pathlib import Path
+from secrets import token_hex
 from types import GenericAlias
 from typing import Optional, get_type_hints
 
@@ -87,3 +88,26 @@ def environ(env_path=None, prefix=''):
             return instances[cls]
         return wrapper
     return environ_wrap
+
+
+def new_token(key: str = 'TOKEN', nbytes: int = 32, write_file: bool = True):
+    '''Генерирует новый токен указанной длины.
+    Args:
+        `key`: ключ с которым токен будет записан в файл .env
+        `nbytes`: количество байт в токене
+        `write_file`: флаг отвечающий за запись сгенерированного токена в файл
+    Returns:
+        `token`: строка со сгенерированным токеном
+    '''
+    p = _find_env()
+    if not p:
+        p = Path.cwd() / '.env'
+    token = token_hex(nbytes)
+    if write_file:
+        with p.open('a+', encoding='UTF-8') as f:
+            f.seek(0)
+            content = f.read()
+            if content and not content.endswith('\n'):
+                f.write('\n')
+            f.write(f'{key}={token}\n')
+    return token
